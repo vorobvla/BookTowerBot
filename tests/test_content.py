@@ -9,6 +9,7 @@ from bot.content import (
     MAP_MESSAGE,
     MAP_PATH,
     RECOMMENDATIONS_MESSAGE,
+    RECS_PATH,
     START_MESSAGE,
     TIMETABLE_MESSAGE,
     TIMETABLES_PATH,
@@ -45,9 +46,13 @@ def test_timetables_path_defined():
     assert isinstance(TIMETABLES_PATH, str) and len(TIMETABLES_PATH) > 0
 
 
-def test_recommendations_message_contains_picks():
+def test_recommendations_message_contains_prompt():
     assert "Рекомендации" in RECOMMENDATIONS_MESSAGE
-    assert "Стенд" in RECOMMENDATIONS_MESSAGE
+
+
+def test_recs_path_defined():
+    assert isinstance(RECS_PATH, str) and len(RECS_PATH) > 0
+    assert RECS_PATH.endswith(".json")
 
 
 def test_map_path_defined():

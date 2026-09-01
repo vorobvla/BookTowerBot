@@ -174,15 +174,8 @@ async def test_button_callback_handler_map():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "callback_data,expected_text",
-    [
-        (CB_RECOMMENDATIONS, RECOMMENDATIONS_MESSAGE),
-        (CB_HELP, HELP_MESSAGE),
-    ],
-)
-async def test_button_callback_handler_text_actions(callback_data, expected_text):
-    update = create_mock_update_callback(callback_data)
+async def test_button_callback_handler_help():
+    update = create_mock_update_callback(CB_HELP)
     context = MagicMock()
 
     await button_callback_handler(update, context)
@@ -190,8 +183,31 @@ async def test_button_callback_handler_text_actions(callback_data, expected_text
     update.callback_query.answer.assert_awaited_once()
     update.callback_query.message.reply_text.assert_awaited_once()
     kwargs = update.callback_query.message.reply_text.call_args.kwargs
-    assert kwargs["text"] == expected_text
+    assert kwargs["text"] == HELP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+
+
+@pytest.mark.asyncio
+async def test_button_callback_handler_recommendations_flow():
+    # 1. Click recommendations -> returns category buttons
+    update_recs = create_mock_update_callback(CB_RECOMMENDATIONS)
+    context = MagicMock()
+    await button_callback_handler(update_recs, context)
+    update_recs.callback_query.answer.assert_awaited_once()
+    update_recs.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_recs = update_recs.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs_recs["text"] == RECOMMENDATIONS_MESSAGE
+    assert kwargs_recs["reply_markup"] is not None
+
+    # 2. Click category button -> returns books
+    update_cat = create_mock_update_callback("rec_cat:Нонфикшн")
+    await button_callback_handler(update_cat, context)
+    update_cat.callback_query.answer.assert_awaited_once()
+    update_cat.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_cat = update_cat.callback_query.edit_message_text.call_args.kwargs
+    assert "Нонфикшн" in kwargs_cat["text"]
+    assert "Книга Жопова" in kwargs_cat["text"]
+    assert kwargs_cat["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
