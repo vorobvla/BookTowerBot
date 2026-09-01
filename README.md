@@ -160,3 +160,15 @@ To keep the bot running 24/7 on your server/VPS (e.g., Ubuntu, Debian):
    docker compose up -d --build
    ```
 The bot will run continuously in the background and automatically restart if the server reboots.
+
+
+# AssetStructure
+The Assests must be structured as follows:
+
+```bash
+$ASSETS_FILE/
+├── maps/
+├── timetable/
+├── recommendations/
+```
+the root_dir path is pecified in the env

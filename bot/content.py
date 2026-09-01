@@ -1,82 +1,73 @@
 """Content and text templates for BookTowerBot."""
 
+import os
+from pathlib import Path
+
+ASSETS_PATH = os.getenv(
+    "ASSETS_PATH", Path(__file__).parent.parent / ".assets"
+)
+
+MAP_PATH = os.path.join(ASSETS_PATH, "maps", "map.png")
+
 START_MESSAGE = (
-    "📚 *Welcome to BookTowerBot!*\n\n"
-    "I am here to help you navigate the event efficiently and get the most out of your visit.\n\n"
-    "You can use the menu buttons below or type commands directly:\n"
-    "• 🗺 /map — View the venue map and pavilion layout\n"
-    "• 📅 /timetable — Check the schedule of talks and signings\n"
-    "• ⭐ /recommendations — Discover recommended books and booths\n"
-    "• ℹ️ /help — Show help information\n\n"
-    "Please select an option to get started:"
+    "📚 *Добро пожаловать в BookTowerBot!*\n\n"
+    "Я помогу вам сориентироваться на мероприятии и провести время с максимальной пользой.\n\n"
+    "Вы можете использовать кнопки меню ниже или вводить команды напрямую:\n"
+    "• 🏢 /map — Посмотреть карту площадки и схему павильонов\n"
+    "• 📅 /timetable — Расписание выступлений и автограф-сессий\n"
+    "• 📚 /recommendations — Рекомендации книг и стендов\n"
+    "• ℹ️ /help — Справка и помощь\n\n"
+    "Пожалуйста, выберите интересующий раздел:"
 )
 
 HELP_MESSAGE = (
-    "ℹ️ *BookTowerBot Help & Navigation*\n\n"
-    "Available Commands:\n"
-    "• `/start` — Start or restart the bot and show main menu\n"
-    "• `/map` — Display venue layout and pavilion guide\n"
-    "• `/timetable` — View event schedule and session times\n"
-    "• `/recommendations` or `/recs` — View curated recommendations\n"
-    "• `/help` — Display this help message\n\n"
-    "You can also use the persistent keyboard buttons at any time."
+    "ℹ️ *Справка и навигация BookTowerBot*\n\n"
+    "Доступные команды:\n"
+    "• `/start` — Запустить или перезапустить бота и открыть главное меню\n"
+    "• `/map` — Показать карту площадки и схему павильонов\n"
+    "• `/timetable` — Расписание событий и мероприятий\n"
+    "• `/recommendations` или `/recs` — Подборка рекомендаций\n"
+    "• `/help` — Показать это справочное сообщение\n\n"
+    "Вы также можете в любой момент воспользоваться кнопками меню."
 )
 
 MAP_MESSAGE = (
-    "🗺 *BookTower Venue Map*\n\n"
-    "```\n"
-    "+----------------------------------------------+\n"
-    "|               [ NORTH ENTRANCE ]             |\n"
-    "|                                              |\n"
-    "|  +-------------------+    +---------------+  |\n"
-    "|  |   Pavilion A      |    |  Pavilion B   |  |\n"
-    "|  |   (Fiction)       |    |  (Non-Fiction)|  |\n"
-    "|  +-------------------+    +---------------+  |\n"
-    "|                                              |\n"
-    "|  +-------------------+    +---------------+  |\n"
-    "|  |   Main Stage      |    |  Pavilion C   |  |\n"
-    "|  |   (Keynotes)      |    |  (Comics/Kids)|  |\n"
-    "|  +-------------------+    +---------------+  |\n"
-    "|                                              |\n"
-    "|  [ Info Desk ]   [ Food Court ]   [ Restroom ]|\n"
-    "+----------------------------------------------+\n"
-    "```\n\n"
-    "📍 *Zone Directory:*\n"
-    "• *Pavilion A:* Contemporary Fiction, Classics, Poetry (Booths A1–A40)\n"
-    "• *Pavilion B:* Science, History, Biographies, Tech (Booths B1–B40)\n"
-    "• *Pavilion C:* Graphic Novels, Manga, Young Adult (Booths C1–C30)\n"
-    "• *Main Stage:* Author talks, panel discussions, award ceremonies\n"
-    "• *Info Desk:* Central Hall (Lost & Found, Program Guides)"
+    "🏢 *План ярмарки*\n"
 )
 
 TIMETABLE_MESSAGE = (
-    "📅 *BookTower Event Timetable*\n\n"
-    "🗓 *Today's Schedule:*\n\n"
-    "⏰ *10:00 - 11:00* | Main Stage\n"
-    "• Opening Ceremony & Keynote Address\n\n"
-    "⏰ *11:30 - 13:00* | Pavilion A (Signing Area 1)\n"
-    "• Bestselling Fiction Author Meet & Greet\n\n"
-    "⏰ *13:00 - 14:00* | Food Court & Central Courtyard\n"
-    "• Lunch Break & Acoustic Performance\n\n"
-    "⏰ *14:30 - 16:00* | Main Stage\n"
-    "• Panel: The Future of Digital and Print Publishing\n\n"
-    "⏰ *16:30 - 18:00* | Pavilion B (Workshop Room)\n"
-    "• Creative Writing & Translation Workshop\n\n"
-    "⏰ *18:30 - 19:30* | Main Stage\n"
-    "• Daily Literary Awards and Closing Remarks"
+    "📅 *Расписание мероприятий BookTower*\n\n"
+    "🗓 *Программа на сегодня:*\n\n"
+    "⏰ *10:00 - 11:00* | Главная сцена\n"
+    "• Церемония открытия и вступительное слово\n\n"
+    "⏰ *11:30 - 13:00* | Павильон A (Зона автограф-сессий 1)\n"
+    "• Встреча и автограф-сессия с популярными авторами\n\n"
+    "⏰ *13:00 - 14:00* | Фуд-корт и центральный двор\n"
+    "• Обед и акустический концерт\n\n"
+    "⏰ *14:30 - 16:00* | Главная сцена\n"
+    "• Панельная дискуссия: Будущее электронного и печатного книгоиздания\n\n"
+    "⏰ *16:30 - 18:00* | Павильон B (Мастер-классы)\n"
+    "• Воркшоп по писательскому мастерству и художественному переводу\n\n"
+    "⏰ *18:30 - 19:30* | Главная сцена\n"
+    "• Ежегодная литературная премия и закрытие дня"
 )
 
 RECOMMENDATIONS_MESSAGE = (
-    "⭐ *Curated Recommendations for Visitors*\n\n"
-    "🏆 *Must-Visit Booths:*\n"
-    "1. *Booth A12 (Artisan Press):* Exclusive signed editions & prints\n"
-    "2. *Booth B05 (SciTech Books):* 30% discount on science releases\n"
-    "3. *Booth C18 (Indie Comic Vault):* Debut graphic novels\n\n"
-    "📖 *Featured Book Picks:*\n"
-    "• *'Echoes of the Horizon'* — Fiction Highlight of the Month\n"
-    "• *'The Architecture of Thought'* — Recommended Non-Fiction\n"
-    "• *'Skybound Chronicles'* — Best Young Adult Release\n\n"
-    "💡 *Tip:* Visit popular signing areas early to secure your spot in queue!"
+    "⭐ *Рекомендации для посетителей*\n\n"
+    "🏆 *Стенды, обязательные к посещению:*\n"
+    "1. *Стенд A12 (Artisan Press):* Эксклюзивные издания с автографами\n"
+    "2. *Стенд B05 (SciTech Books):* Скидка 30% на научно-популярные новинки\n"
+    "3. *Стенд C18 (Indie Comic Vault):* Дебютные графические романы\n\n"
+    "📖 *Рекомендуемые книги:*\n"
+    "• *«Эхо горизонта»* — Главная новинка художественной литературы\n"
+    "• *«Архитектура мысли»* — Рекомендуемый нон-фикшн\n"
+    "• *«Хроники заоблачных миров»* — Лучший молодежный релиз\n\n"
+    "💡 *Совет:* Приходите на автограф-сессии заранее, чтобы успеть занять очередь!"
+)
+
+UNKNOWN_COMMAND_MESSAGE = (
+    "Команда не распознана. Пожалуйста, используйте кнопки меню ниже "
+    "или введите `/help`, чтобы посмотреть все доступные опции."
 )
 
 # Button label constants

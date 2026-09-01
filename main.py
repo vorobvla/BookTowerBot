@@ -13,10 +13,12 @@ from bot.content import (
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     HELP_MESSAGE,
+    MAP_PATH,
     MAP_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
     TIMETABLE_MESSAGE,
+    UNKNOWN_COMMAND_MESSAGE,
 )
 
 logging.basicConfig(
@@ -58,20 +60,16 @@ def run_local_interactive_cli() -> None:
         cmd = user_input.lower()
         if cmd in {"/start", "start"}:
             print(f"\n[Bot]:\n{START_MESSAGE}\n")
-        elif cmd in {"/map", "map", BTN_MAP.lower()}:
-            print(f"\n[Bot]:\n{MAP_MESSAGE}\n")
-        elif cmd in {"/timetable", "timetable", "schedule", BTN_TIMETABLE.lower()}:
+        elif cmd in {"/map", "map", "план", "карта", BTN_MAP.lower()}:
+            print(f"\n[Bot]: [Image: {MAP_PATH}]\n{MAP_MESSAGE}\n")
+        elif cmd in {"/timetable", "timetable", "schedule", "расписание", BTN_TIMETABLE.lower()}:
             print(f"\n[Bot]:\n{TIMETABLE_MESSAGE}\n")
-        elif cmd in {"/recommendations", "/recs", "recommendations", "recs", BTN_RECOMMENDATIONS.lower()}:
+        elif cmd in {"/recommendations", "/recs", "recommendations", "recs", "рекомендации", BTN_RECOMMENDATIONS.lower()}:
             print(f"\n[Bot]:\n{RECOMMENDATIONS_MESSAGE}\n")
-        elif cmd in {"/help", "help", BTN_HELP.lower()}:
+        elif cmd in {"/help", "help", "помощь", BTN_HELP.lower()}:
             print(f"\n[Bot]:\n{HELP_MESSAGE}\n")
         else:
-            print(
-                "\n[Bot]:\n"
-                "I didn't recognize that command. Please use the menu buttons below "
-                "or type `/help` to see all available options.\n"
-            )
+            print(f"\n[Bot]:\n{UNKNOWN_COMMAND_MESSAGE}\n")
 
 
 def main() -> None:
@@ -87,6 +85,12 @@ def main() -> None:
         "--local",
         action="store_true",
         help="Run local interactive CLI simulation without connecting to Telegram servers",
+    )
+    parser.add_argument(
+        "--assetsPath",
+        type=str,
+        default=".assets",
+        help="Path to the assets directory (overrides ASSETS_PATH environment variable)",
     )
 
     args = parser.parse_args()

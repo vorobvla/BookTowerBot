@@ -7,3 +7,4 @@ services:
       - .env
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ASSETS_PATH=${ASSETS_PATH}

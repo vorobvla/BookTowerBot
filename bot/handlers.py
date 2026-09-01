@@ -1,6 +1,7 @@
 """Telegram bot command, message, and callback handlers."""
 
 import logging
+import os
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -11,10 +12,12 @@ from bot.content import (
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     HELP_MESSAGE,
+    MAP_PATH,
     MAP_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
     TIMETABLE_MESSAGE,
+    UNKNOWN_COMMAND_MESSAGE,
 )
 from bot.keyboards import (
     CB_HELP,
@@ -51,11 +54,20 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def map_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /map command."""
     if update.effective_message:
-        await update.effective_message.reply_text(
-            text=MAP_MESSAGE,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_inline_keyboard(),
-        )
+        if os.path.exists(MAP_PATH):
+            with open(MAP_PATH, "rb") as photo:
+                await update.effective_message.reply_photo(
+                    photo=photo,
+                    caption=MAP_MESSAGE,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_main_inline_keyboard(),
+                )
+        else:
+            await update.effective_message.reply_text(
+                text=f"Map not found at {MAP_PATH}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_main_inline_keyboard(),
+            )
 
 
 async def timetable_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -87,8 +99,25 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     action = query.data
+    if action == CB_MAP:
+        if os.path.exists(MAP_PATH):
+            with open(MAP_PATH, "rb") as photo:
+                await query.message.reply_photo(
+                    photo=photo,
+                    caption=MAP_MESSAGE,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_main_inline_keyboard(),
+                )
+        else:
+            await query.message.reply_photo(
+                photo=MAP_PATH,
+                caption=MAP_MESSAGE,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_main_inline_keyboard(),
+            )
+        return
+
     response_map = {
-        CB_MAP: MAP_MESSAGE,
         CB_TIMETABLE: TIMETABLE_MESSAGE,
         CB_RECOMMENDATIONS: RECOMMENDATIONS_MESSAGE,
         CB_HELP: HELP_MESSAGE,
@@ -111,20 +140,17 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     text = update.effective_message.text.strip()
     normalized = text.lower()
 
-    if text == BTN_MAP or normalized in {"map", "venue map", "venue"}:
+    if text == BTN_MAP or normalized in {"карта", "план", "схема", "map", "venue map", "venue"}:
         await map_handler(update, context)
-    elif text == BTN_TIMETABLE or normalized in {"timetable", "schedule", "time table"}:
+    elif text == BTN_TIMETABLE or normalized in {"расписание", "программа", "timetable", "schedule", "time table"}:
         await timetable_handler(update, context)
-    elif text == BTN_RECOMMENDATIONS or normalized in {"recommendations", "recs", "recommendation"}:
+    elif text == BTN_RECOMMENDATIONS or normalized in {"рекомендации", "recommendations", "recs", "recommendation"}:
         await recommendations_handler(update, context)
-    elif text == BTN_HELP or normalized in {"help", "info"}:
+    elif text == BTN_HELP or normalized in {"помощь", "справка", "help", "info"}:
         await help_handler(update, context)
     else:
         await update.effective_message.reply_text(
-            text=(
-                "I didn't recognize that command. Please use the menu buttons below "
-                "or type `/help` to see all available options."
-            ),
+            text=UNKNOWN_COMMAND_MESSAGE,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_main_reply_keyboard(),
         )
