@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    container_name: booktower_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
