@@ -40,7 +40,7 @@ def test_build_application_registers_handlers():
     assert "start" in registered_commands
     assert "help" in registered_commands
     assert "map" in registered_commands
-    assert "timetable" in registered_commands
+    assert "timetables" in registered_commands
     assert "recommendations" in registered_commands
     assert "recs" in registered_commands
 

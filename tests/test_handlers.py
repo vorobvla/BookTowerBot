@@ -12,7 +12,6 @@ from bot.content import (
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     HELP_MESSAGE,
-    MAP_IMAGE_PATH,
     MAP_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
@@ -136,7 +135,7 @@ async def test_button_callback_handler_map_with_existing_file():
 
 @pytest.mark.asyncio
 async def test_timetable_handler():
-    update = create_mock_update_message("/timetable")
+    update = create_mock_update_message("/timetables")
     context = MagicMock()
 
     await timetable_handler(update, context)
@@ -178,7 +177,6 @@ async def test_button_callback_handler_map():
 @pytest.mark.parametrize(
     "callback_data,expected_text",
     [
-        (CB_TIMETABLE, TIMETABLE_MESSAGE),
         (CB_RECOMMENDATIONS, RECOMMENDATIONS_MESSAGE),
         (CB_HELP, HELP_MESSAGE),
     ],
@@ -194,6 +192,39 @@ async def test_button_callback_handler_text_actions(callback_data, expected_text
     kwargs = update.callback_query.message.reply_text.call_args.kwargs
     assert kwargs["text"] == expected_text
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+
+
+@pytest.mark.asyncio
+async def test_button_callback_handler_timetable_flow():
+    # 1. Click timetable action -> returns dates
+    update_dates = create_mock_update_callback(CB_TIMETABLE)
+    context = MagicMock()
+    await button_callback_handler(update_dates, context)
+    update_dates.callback_query.answer.assert_awaited_once()
+    update_dates.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_dates = update_dates.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs_dates["text"] == TIMETABLE_MESSAGE
+    assert kwargs_dates["reply_markup"] is not None
+
+    # 2. Click a date -> returns locations for that day
+    update_locs = create_mock_update_callback("tt_date:13092026")
+    await button_callback_handler(update_locs, context)
+    update_locs.callback_query.answer.assert_awaited_once()
+    update_locs.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_locs = update_locs.callback_query.edit_message_text.call_args.kwargs
+    assert "13.09.2026" in kwargs_locs["text"]
+    assert kwargs_locs["reply_markup"] is not None
+
+    # 3. Click a location -> returns events for that location
+    update_events = create_mock_update_callback("tt_loc:13092026:Главная сцена")
+    await button_callback_handler(update_events, context)
+    update_events.callback_query.answer.assert_awaited_once()
+    update_events.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_events = update_events.callback_query.edit_message_text.call_args.kwargs
+    assert "Главная сцена" in kwargs_events["text"]
+    assert "13.09.2026" in kwargs_events["text"]
+    assert "10:00" in kwargs_events["text"]
+    assert kwargs_events["reply_markup"] is not None
 
 
 @pytest.mark.asyncio

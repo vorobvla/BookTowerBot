@@ -12,14 +12,10 @@ from bot.content import (
     BTN_MAP,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
-    HELP_MESSAGE,
-    MAP_PATH,
-    MAP_MESSAGE,
-    RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
-    TIMETABLE_MESSAGE,
     UNKNOWN_COMMAND_MESSAGE,
 )
+from bot.sections import default_registry
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -35,7 +31,7 @@ def run_local_interactive_cli() -> None:
     print("==================================================")
     print("Simulating bot interactions in the terminal.")
     print("Available simulated inputs:")
-    print("  Commands: /start, /map, /timetable, /recommendations, /help")
+    print("  Commands: /start, /map, /timetables, /recommendations, /help")
     print(f"  Buttons:  '{BTN_MAP}', '{BTN_TIMETABLE}', '{BTN_RECOMMENDATIONS}', '{BTN_HELP}'")
     print("Type 'exit' or 'quit' to end simulation.\n")
 
@@ -57,17 +53,9 @@ def run_local_interactive_cli() -> None:
             print("Ending local simulation.")
             break
 
-        cmd = user_input.lower()
-        if cmd in {"/start", "start"}:
-            print(f"\n[Bot]:\n{START_MESSAGE}\n")
-        elif cmd in {"/map", "map", "план", "карта", BTN_MAP.lower()}:
-            print(f"\n[Bot]: [Image: {MAP_PATH}]\n{MAP_MESSAGE}\n")
-        elif cmd in {"/timetable", "timetable", "schedule", "расписание", BTN_TIMETABLE.lower()}:
-            print(f"\n[Bot]:\n{TIMETABLE_MESSAGE}\n")
-        elif cmd in {"/recommendations", "/recs", "recommendations", "recs", "рекомендации", BTN_RECOMMENDATIONS.lower()}:
-            print(f"\n[Bot]:\n{RECOMMENDATIONS_MESSAGE}\n")
-        elif cmd in {"/help", "help", "помощь", BTN_HELP.lower()}:
-            print(f"\n[Bot]:\n{HELP_MESSAGE}\n")
+        section = default_registry.find_by_text(user_input) or default_registry.find_by_command(user_input)
+        if section:
+            print(f"\n[Bot]:\n{section.get_display_text()}\n")
         else:
             print(f"\n[Bot]:\n{UNKNOWN_COMMAND_MESSAGE}\n")
 

@@ -29,7 +29,7 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("help", help_handler))
     app.add_handler(CommandHandler("map", map_handler))
-    app.add_handler(CommandHandler("timetable", timetable_handler))
+    app.add_handler(CommandHandler("timetables", timetable_handler))
     app.add_handler(CommandHandler(["recommendations", "recs"], recommendations_handler))
 
     # Callback query handler for inline keyboard buttons

@@ -168,7 +168,7 @@ The Assests must be structured as follows:
 ```bash
 $ASSETS_FILE/
 ├── maps/
-├── timetable/
+├── timetables/
 ├── recommendations/
 ```
 the root_dir path is pecified in the env
