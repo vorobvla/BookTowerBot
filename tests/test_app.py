@@ -46,3 +46,8 @@ def test_build_application_registers_handlers():
 
     assert len(callback_handlers) >= 1
     assert len(message_handlers) >= 1
+
+
+def test_build_application_concurrent_updates():
+    app = build_application("123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+    assert app.update_processor.max_concurrent_updates > 1

@@ -41,6 +41,11 @@ def setup_handlers(app: Application) -> None:
 
 def build_application(token: str) -> Application:
     """Build and configure the Telegram Bot Application."""
-    app = ApplicationBuilder().token(token).build()
+    app = (
+        ApplicationBuilder()
+        .token(token)
+        .concurrent_updates(True)
+        .build()
+    )
     setup_handlers(app)
     return app

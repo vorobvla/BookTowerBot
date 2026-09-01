@@ -115,6 +115,89 @@ async def test_map_section_photo_dispatch(mock_message):
 
 
 @pytest.mark.asyncio
+async def test_map_section_caches_and_reuses_file_id(mock_message):
+    map_sec = Map(image_path="test_map.png")
+    assert map_sec.cached_file_id is None
+
+    # First send: simulate Telegram returning a Message with PhotoSize
+    photo_mock = MagicMock()
+    photo_mock.file_id = "telegram_photo_file_id_999"
+    sent_msg_mock = MagicMock()
+    sent_msg_mock.photo = (photo_mock,)
+    mock_message.reply_photo.return_value = sent_msg_mock
+
+    m_open = mock_open(read_data=b"fake_png")
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open:
+        await map_sec.send_response(mock_message)
+        assert mocked_open.called
+        assert map_sec.cached_file_id == "telegram_photo_file_id_999"
+
+    # Second send: should use cached file_id and NOT open file
+    mock_message.reply_photo.reset_mock()
+    m_open2 = mock_open(read_data=b"fake_png")
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open2) as mocked_open:
+        await map_sec.send_response(mock_message)
+        assert not mocked_open.called
+        mock_message.reply_photo.assert_awaited_once()
+        kwargs = mock_message.reply_photo.call_args.kwargs
+        assert kwargs["photo"] == "telegram_photo_file_id_999"
+        assert kwargs["caption"] == MAP_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_map_section_fallback_on_invalid_cached_file_id(mock_message):
+    map_sec = Map(image_path="test_map.png", cached_file_id="stale_file_id")
+
+    # When sending with cached_file_id fails, it should fallback to uploading
+    def reply_side_effect(**kwargs):
+        if kwargs.get("photo") == "stale_file_id":
+            raise RuntimeError("Telegram BadRequest: file_id is invalid")
+        sent = MagicMock()
+        photo = MagicMock()
+        photo.file_id = "new_valid_file_id"
+        sent.photo = (photo,)
+        return sent
+
+    mock_message.reply_photo.side_effect = reply_side_effect
+
+    m_open = mock_open(read_data=b"fake_png")
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open:
+        await map_sec.send_response(mock_message)
+        assert mocked_open.called
+        assert map_sec.cached_file_id == "new_valid_file_id"
+
+
+@pytest.mark.asyncio
+async def test_map_section_global_cache_sharing(mock_message):
+    Map._global_cached_file_id = None
+    map1 = Map()
+    map2 = Map()
+    assert map1.cached_file_id is None
+    assert map2.cached_file_id is None
+
+    photo_mock = MagicMock()
+    photo_mock.file_id = "shared_plan_file_id_123"
+    sent_msg_mock = MagicMock()
+    sent_msg_mock.photo = (photo_mock,)
+    mock_message.reply_photo.return_value = sent_msg_mock
+
+    m_open = mock_open(read_data=b"fake_plan_bytes")
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open:
+        await map1.send_response(mock_message)
+        assert mocked_open.called
+        assert map1.cached_file_id == "shared_plan_file_id_123"
+        assert map2.cached_file_id == "shared_plan_file_id_123"
+
+    mock_message.reply_photo.reset_mock()
+    m_open2 = mock_open(read_data=b"fake_plan_bytes")
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open2) as mocked_open2:
+        await map2.send_response(mock_message)
+        assert not mocked_open2.called
+        mock_message.reply_photo.assert_awaited_once()
+        assert mock_message.reply_photo.call_args.kwargs["photo"] == "shared_plan_file_id_123"
+
+
+@pytest.mark.asyncio
 async def test_timetable_section(mock_message):
     tt = Timetable()
     assert tt.name == "timetables"

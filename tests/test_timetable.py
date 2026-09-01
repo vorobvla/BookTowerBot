@@ -26,7 +26,7 @@ def test_event_from_dict_and_format():
         "title": "Презентация книги",
         "description": "Описание события.",
         "participants": ["Иван Иванов", "Петр Петров"],
-        "Organizer": "Издательство ABC",
+        "organizer": "Издательство ABC",
         "location": "Главная сцена",
     }
     event = Event.from_dict(data)

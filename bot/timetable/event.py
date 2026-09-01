@@ -18,7 +18,7 @@ class Event:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Event":
         """Create Event instance from a dictionary."""
-        organizer = data.get("Organizer") or data.get("organizer") or ""
+        organizer = data.get("organizer") or data.get("organizer") or ""
         participants = data.get("participants") or []
         if isinstance(participants, str):
             participants = [participants]
