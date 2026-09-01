@@ -1,0 +1,13 @@
+<tr>
+    <td><strong>{{ title }}</strong></td>
+    <td>{{ authors }}</td>
+    <td><span class="badge">{{ sold_by }}</span></td>
+    <td><small>{{ description }}</small></td>
+    <td style="white-space: nowrap;">
+        <form method="POST" action="/recs/book/delete" style="display:inline;" onsubmit="return confirm('Удалить книгу?');">
+            <input type="hidden" name="category_name" value="{{ category_name }}">
+            <input type="hidden" name="book_index" value="{{ book_index }}">
+            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+        </form>
+    </td>
+</tr>

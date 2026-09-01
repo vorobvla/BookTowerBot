@@ -1,0 +1,30 @@
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2>📚 Управление рекомендациями книг</h2>
+        <p style="color: var(--text-muted);"> Редактирование категорий и книг для раздела рекомендаций бота.</p>
+    </div>
+</div>
+
+{{ alerts_html }}
+
+<div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
+    <h4 style="margin-bottom: 0.75rem; color: #1e40af;">+ Создать новую категорию рекомендаций</h4>
+    <form method="POST" action="/recs/category/add" id="addCategoryForm">
+        <div style="margin-bottom: 0.75rem;">
+            <label style="display:block; font-size:0.875rem; font-weight:600; margin-bottom:0.35rem;">Эмодзи для категории</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" name="emoji" id="newCatEmoji" class="form-control" value="📚" style="width: 65px; text-align: center; font-size: 1.35rem; cursor: pointer;" readonly onclick="openEmojiPicker('newCatEmoji')">
+                <button type="button" class="btn btn-secondary" style="height: 38px;" onclick="openEmojiPicker('newCatEmoji')">Выбрать эмодзи во всплывающем окне</button>
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem; max-width: 600px; align-items: flex-end;">
+            <div style="flex: 1;">
+                <label style="display:block; font-size:0.875rem; font-weight:600; margin-bottom:0.35rem;">Название категории</label>
+                <input type="text" name="category_name" class="form-control" required>
+            </div>
+            <button type="submit" class="btn" style="white-space: nowrap; height: 38px;">Создать категорию</button>
+        </div>
+    </form>
+</div>
+
+{{ categories_html }}

@@ -16,10 +16,13 @@ class TimetableService:
         self.timetables_dir = timetables_dir or TIMETABLES_PATH
 
     def _get_sort_key(self, date_str: str):
-        try:
-            return datetime.strptime(date_str, "%d%m%Y")
-        except Exception:
-            return date_str
+        for fmt in ("%d%m%Y", "%Y-%m-%d", "%d.%m.%Y"):
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return (0, dt)
+            except Exception:
+                continue
+        return (1, date_str)
 
     def get_available_dates(self) -> List[str]:
         """Return list of all dates available in the timetables directory, sorted chronologically."""

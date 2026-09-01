@@ -1,0 +1,121 @@
+<div style="margin-bottom: 1.5rem;">
+    <a href="/timetables" style="color: var(--primary); text-decoration: none; font-weight: 500;">← Назад к списку дней</a>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+        <h2>📅 События на {{ display_date }}</h2>
+    </div>
+</div>
+
+{{ alerts_html }}
+
+<div class="card">
+    <h3>Список событий ({{ events_count }})</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Время</th>
+                <th>Название</th>
+                <th>Локация</th>
+                <th>Организатор</th>
+                <th>Участники</th>
+                <th>Описание</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ event_rows }}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h3>+ Добавить новое мероприятие</h3>
+    <form method="POST" action="/timetables/{{ date_key }}/events/add" onsubmit="return validateEventForm(this);">
+        <div class="grid" style="grid-template-columns: 1.2fr 2fr 2fr;">
+            <div class="form-group">
+                <label class="required">Время начала</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <div id="eventTimeDisplayBtn" class="form-control" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 1.05rem; background: #ffffff;" onclick="openAndroidTimePicker('eventStartTime', 'eventTimeDisplayVal')">
+                        <span id="eventTimeDisplayVal">10:00</span>
+                        <span style="font-size: 1.15rem; color: var(--primary);">🕒</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary" style="height: 38px; padding: 0.4rem 0.75rem;" onclick="openAndroidTimePicker('eventStartTime', 'eventTimeDisplayVal')">Выбрать</button>
+                    <input type="hidden" id="eventStartTime" name="time" value="10:00">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="required">Название</label>
+                <input type="text" id="eventTitle" name="title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="required">Локация</label>
+                <select id="locationSelect" name="location_select" class="form-control" onchange="handleLocationSelectChange(this)">
+                    <option value="">-- Выберите локацию из списка --</option>
+                    {{ location_options }}
+                    <option value="__NEW__">➕ Создать новую локацию...</option>
+                </select>
+                <input type="text" id="customLocationInput" name="custom_location" class="form-control" style="display:none; margin-top:0.5rem;">
+            </div>
+        </div>
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="form-group">
+                <label>Организатор</label>
+                <input type="text" name="organizer" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Участники</label>
+                <input type="text" name="participants" class="form-control">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Описание мероприятия</label>
+            <textarea name="description" class="form-control" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn">Добавить мероприятие</button>
+    </form>
+</div>
+
+<script>
+function syncEventTimeInput() {
+    var h = document.getElementById('startHourSelect').value;
+    var m = document.getElementById('startMinuteSelect').value;
+    document.getElementById('eventStartTime').value = h + ':' + m;
+}
+
+function handleLocationSelectChange(selectElem) {
+    var customInput = document.getElementById('customLocationInput');
+    if (selectElem.value === '__NEW__') {
+        customInput.style.display = 'block';
+        customInput.required = true;
+        customInput.focus();
+    } else {
+        customInput.style.display = 'none';
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+
+function validateEventForm(form) {
+    var startTime = document.getElementById('eventStartTime').value.trim();
+    if (!startTime) {
+        alert('Пожалуйста, укажите время начала');
+        document.getElementById('eventStartTime').focus();
+        return false;
+    }
+
+    var locSelect = document.getElementById('locationSelect');
+    var customLoc = document.getElementById('customLocationInput');
+    if (locSelect.value === '__NEW__') {
+        if (!customLoc.value.trim()) {
+            alert('Пожалуйста, введите название новой локации');
+            customLoc.focus();
+            return false;
+        }
+    } else if (!locSelect.value.trim()) {
+        alert('Пожалуйста, выберите локацию');
+        locSelect.focus();
+        return false;
+    }
+
+    return true;
+}
+</script>

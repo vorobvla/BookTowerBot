@@ -1,0 +1,10 @@
+<tr>
+    <td><strong>{{ display_date }}</strong></td>
+    <td>
+        <a href="/timetables/{{ date_key }}" class="btn btn-sm">Открыть расписание</a>
+        <form method="POST" action="/timetables/delete" style="display:inline; margin-left: 0.5rem;" onsubmit="return confirm('Удалить расписание на {{ display_date }}?');">
+            <input type="hidden" name="date" value="{{ date_key }}">
+            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+        </form>
+    </td>
+</tr>

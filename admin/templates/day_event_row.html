@@ -1,0 +1,14 @@
+<tr>
+    <td><strong>{{ time }}</strong></td>
+    <td><strong>{{ title }}</strong></td>
+    <td><span class="badge" style="background:#dbeafe; color:#1e40af;">📍 {{ location }}</span></td>
+    <td>{{ organizer }}</td>
+    <td>{{ participants }}</td>
+    <td><small>{{ description }}</small></td>
+    <td>
+        <form method="POST" action="/timetables/{{ date_key }}/events/delete" style="display:inline;" onsubmit="return confirm('Удалить событие?');">
+            <input type="hidden" name="event_index" value="{{ event_index }}">
+            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+        </form>
+    </td>
+</tr>

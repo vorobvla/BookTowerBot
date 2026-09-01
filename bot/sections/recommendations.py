@@ -47,7 +47,7 @@ class Recommendations(BaseSection):
         return f"{self.get_text_content()}\n\n" + "\n".join(formatted_cats)
 
     def get_reply_markup(self, inline: bool = False):
-        categories = self.service.get_category_names()
+        categories = self.service.get_categories()
         return get_categories_inline_keyboard(categories=categories)
 
     def matches_callback(self, callback_data: str) -> bool:

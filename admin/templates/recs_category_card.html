@@ -1,0 +1,78 @@
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <div>
+            <h3 style="margin: 0; display: inline;">{{ category_emoji }} {{ category_name }}</h3>
+            <span style="color: var(--text-muted); font-size: 0.9rem; margin-left: 0.5rem;">({{ books_count }} книг)</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="var el = document.getElementById('editCat_{{ category_name }}'); el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';">✏️ Изменить категорию</button>
+            <form method="POST" action="/recs/category/delete" style="display:inline;" onsubmit="return confirm('Удалить категорию «{{ category_name }}» со всеми книгами?');">
+                <input type="hidden" name="category_name" value="{{ category_name }}">
+                <button type="submit" class="btn btn-danger btn-sm">Удалить категорию</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="editCat_{{ category_name }}" style="display: none; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1.25rem;">
+        <h4 style="margin-bottom: 0.75rem; color: #1e293b;">Редактирование категории</h4>
+        <form method="POST" action="/recs/category/update">
+            <input type="hidden" name="old_name" value="{{ category_name }}">
+            <div style="margin-bottom: 0.75rem;">
+                <label style="display:block; font-size:0.875rem; font-weight:600; margin-bottom:0.35rem;">Эмодзи</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" name="emoji" id="editEmoji_{{ category_name }}" class="form-control" value="{{ category_emoji }}" style="width: 65px; text-align: center; font-size: 1.35rem; cursor: pointer;" readonly onclick="openEmojiPicker('editEmoji_{{ category_name }}')">
+                    <button type="button" class="btn btn-secondary" style="height: 38px;" onclick="openEmojiPicker('editEmoji_{{ category_name }}')">Выбрать эмодзи во всплывающем окне</button>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label style="display:block; font-size:0.875rem; font-weight:600; margin-bottom:0.35rem;">Название категории</label>
+                    <input type="text" name="new_name" class="form-control" value="{{ category_name }}" required>
+                </div>
+                <button type="submit" class="btn" style="height: 38px;">Сохранить изменения</button>
+                <button type="button" class="btn btn-secondary" style="height: 38px;" onclick="document.getElementById('editCat_{{ category_name }}').style.display='none';">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Название книги</th>
+                <th>Авторы</th>
+                <th>Где купить</th>
+                <th>Описание</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ books_rows }}
+        </tbody>
+    </table>
+
+    <details style="margin-top: 1.25rem; border-top: 1px dashed var(--border); padding-top: 1rem;">
+        <summary style="cursor: pointer; font-weight: 600; color: var(--primary);">+ Добавить книгу в подборку «{{ category_name }}»</summary>
+        <form method="POST" action="/recs/book/add" style="margin-top: 1rem; background: #f8fafc; padding: 1rem; border-radius: 6px; border: 1px solid var(--border);">
+            <input type="hidden" name="category_name" value="{{ category_name }}">
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                    <label class="required">Название книги</label>
+                    <input type="text" name="title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="required">Где купить</label>
+                    <input type="text" name="sold_by" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Авторы</label>
+                <input type="text" name="authors" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Описание</label>
+                <textarea name="description" class="form-control" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn">Добавить книгу</button>
+        </form>
+    </details>
+</div>

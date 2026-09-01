@@ -11,20 +11,23 @@ class RecommendationCategory:
     """Represents a category/compilation of recommended books."""
 
     name: str
+    emoji: str = ""
     books: List[Book] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RecommendationCategory":
         """Create RecommendationCategory instance from a dictionary."""
         name = str(data.get("rec", data.get("name", ""))).strip()
+        emoji = str(data.get("emoji", "")).strip()
         raw_books = data.get("books") or []
         books = [Book.from_dict(item) for item in raw_books if isinstance(item, dict)]
-        return cls(name=name, books=books)
+        return cls(name=name, emoji=emoji, books=books)
 
     def format_markdown(self) -> str:
         """Format the category and its book list as Markdown."""
+        header_emoji = self.emoji if self.emoji else "📚"
         lines = [
-            f"📚 *Рекомендации: {self.name}*\n",
+            f"{header_emoji} *Рекомендации: {self.name}*\n",
         ]
 
         if not self.books:
