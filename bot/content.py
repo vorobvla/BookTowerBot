@@ -2,17 +2,31 @@
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
-ASSETS_PATH = os.getenv(
-    "ASSETS_PATH",
-    str(Path(__file__).parent.parent / "assets")
-    if (Path(__file__).parent.parent / "assets").exists()
-    else str(Path(__file__).parent.parent / ".assets"),
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+
+
+def _resolve_relative_path(path: str) -> str:
+    p = Path(path)
+    if not p.is_absolute():
+        return str((PROJECT_ROOT / p).resolve())
+    return str(p.resolve())
+
+
+ASSETS_PATH = _resolve_relative_path(
+    os.getenv(
+        "ASSETS_PATH",
+        str(PROJECT_ROOT / "assets")
+        if (PROJECT_ROOT / "assets").exists()
+        else str(PROJECT_ROOT / ".assets"),
+    )
 )
 
-MAP_PATH = os.path.join(ASSETS_PATH, "maps", "map.png")
-TIMETABLES_PATH = os.path.join(ASSETS_PATH, "timetables")
-RECS_PATH = os.path.join(ASSETS_PATH, "recs", "recs.json")
+MAP_PATH = _resolve_relative_path(os.getenv("MAP_PATH", os.path.join(ASSETS_PATH, "maps", "map.png")))
+TIMETABLES_PATH = _resolve_relative_path(os.getenv("TIMETABLES_PATH", os.path.join(ASSETS_PATH, "timetables")))
+RECS_PATH = _resolve_relative_path(os.getenv("RECS_PATH", os.path.join(ASSETS_PATH, "recs", "recs.json")))
 
 START_MESSAGE = (
     "📚 *Добро пожаловать в BookTowerBot!*\n\n"

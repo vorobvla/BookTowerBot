@@ -2,7 +2,7 @@
 
 import json
 from http.cookies import SimpleCookie
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, unquote_plus
 
 
@@ -80,3 +80,18 @@ class AdminRequest:
     def get_cookie(self, name: str) -> Optional[str]:
         """Get value of specified cookie name."""
         return self.cookies.get(name)
+
+    def get_basic_auth(self) -> Optional[Tuple[str, str]]:
+        """Extract username and password from HTTP Basic Authorization header if present."""
+        auth_header = self.headers.get("authorization", "")
+        if auth_header.lower().startswith("basic "):
+            import base64
+            try:
+                b64_creds = auth_header.split(" ", 1)[1].strip()
+                decoded = base64.b64decode(b64_creds).decode("utf-8")
+                if ":" in decoded:
+                    username, password = decoded.split(":", 1)
+                    return username, password
+            except Exception:
+                return None
+        return None

@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import urllib.request
 from typing import Dict
+from unittest.mock import patch
 import pytest
 
 from admin.app import AdminApp
@@ -69,15 +70,19 @@ def temp_admin_env():
     with open(day_file, "w", encoding="utf-8") as f:
         json.dump(initial_day, f)
 
+    auth_db = os.path.join(temp_dir, "test_admin_users.db")
     config = AdminConfig(
         host="127.0.0.1",
         port=0,
-        username="testadmin",
-        password="testpassword",
+        auth_db_path=auth_db,
         assets_path=temp_dir,
         recs_path=recs_file,
         timetables_path=timetables_dir,
     )
+
+    # Initialize auth and create confirmed test admin user
+    auth = AdminAuthenticator(config=config, db_path=auth_db)
+    auth.create_admin_user("testadmin", "testpassword", is_confirmed=True)
 
     yield config, recs_file, timetables_dir
 
@@ -88,13 +93,66 @@ def temp_admin_env():
 
 def test_authenticator(temp_admin_env):
     config, _, _ = temp_admin_env
-    auth = AdminAuthenticator(config)
+    auth = AdminAuthenticator(config=config)
 
     assert auth.authenticate("testadmin", "testpassword") is True
     assert auth.authenticate("testadmin", "wrong") is False
     assert auth.authenticate("wrong", "testpassword") is False
     assert auth.authenticate("", "") is False
     assert auth.authenticate(None, None) is False
+
+
+def test_authenticator_registration_and_approval(temp_admin_env):
+    config, _, _ = temp_admin_env
+    auth = AdminAuthenticator(config=config)
+
+    # 1. Registration validation errors
+    ok, err = auth.register("", "secret123")
+    assert ok is False
+    assert "cannot be empty" in err
+
+    ok, err = auth.register("ab", "secret123")
+    assert ok is False
+    assert "at least 3 characters" in err
+
+    ok, err = auth.register("user@bad#name", "secret123")
+    assert ok is False
+    assert "letters, numbers" in err
+
+    ok, err = auth.register("newuser", "123")
+    assert ok is False
+    assert "at least 6 characters" in err
+
+    # 2. Valid registration -> status is pending (unconfirmed)
+    ok, msg = auth.register("newuser", "securepass123")
+    assert ok is True
+    assert "awaiting administrator approval" in msg
+
+    # Cannot login while unconfirmed
+    assert auth.authenticate("newuser", "securepass123") is False
+    assert auth.is_confirmed("newuser") is False
+
+    # Duplicate registration rejected
+    ok, err = auth.register("newuser", "anotherpass123")
+    assert ok is False
+    assert "already exists" in err
+
+    # 3. List pending users
+    pending = auth.list_pending_users()
+    assert any(u["username"] == "newuser" for u in pending)
+
+    # 4. Approve user
+    assert auth.approve_user("newuser") is True
+    assert auth.is_confirmed("newuser") is True
+
+    # Now login succeeds!
+    assert auth.authenticate("newuser", "securepass123") is True
+    assert auth.authenticate("newuser", "wrongpass") is False
+
+    # 5. Reject / Delete user
+    assert auth.reject_user("newuser") is True
+    assert auth.user_exists("newuser") is False
+    assert auth.authenticate("newuser", "securepass123") is False
 
 
 def test_session_manager():
@@ -337,6 +395,145 @@ def test_router_auth_guard_and_login_flow(temp_admin_env):
     assert router.route(req_reauth).status_code == 302
 
 
+def test_router_registration_and_pending_flow(temp_admin_env):
+    """Verify web registration flow, password mismatch handling, and pending login feedback."""
+    config, _, _ = temp_admin_env
+    router = AdminRouter(config=config)
+
+    # 1. GET /register returns registration HTML
+    req_reg_get = AdminRequest(method="GET", path="/register", headers={})
+    resp_reg_get = router.route(req_reg_get)
+    assert resp_reg_get.status_code == 200
+    assert "Регистрация нового администратора" in resp_reg_get.body.decode("utf-8")
+
+    # 2. POST /register with mismatched passwords
+    body_mismatch = b"username=candidate1&password=password123&confirm_password=password456"
+    req_mismatch = AdminRequest(
+        method="POST",
+        path="/register",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        body=body_mismatch,
+    )
+    resp_mismatch = router.route(req_mismatch)
+    assert resp_mismatch.status_code == 400
+    assert "не совпадают" in resp_mismatch.body.decode("utf-8")
+
+    # 3. POST /register successful
+    body_ok = b"username=candidate1&password=password123&confirm_password=password123"
+    req_ok = AdminRequest(
+        method="POST",
+        path="/register",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        body=body_ok,
+    )
+    resp_ok = router.route(req_ok)
+    assert resp_ok.status_code == 200
+    assert "Registration successful" in resp_ok.body.decode("utf-8") or "Регистрация успешна" in resp_ok.body.decode("utf-8")
+
+    # 4. Attempt login with unconfirmed user
+    body_login = b"username=candidate1&password=password123"
+    req_login = AdminRequest(
+        method="POST",
+        path="/login",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        body=body_login,
+    )
+    resp_login = router.route(req_login)
+    assert resp_login.status_code == 401
+    assert "ожидает подтверждения" in resp_login.body.decode("utf-8")
+
+    # 5. Confirm user via authenticator and verify login now succeeds
+    router.authenticator.approve_user("candidate1")
+    resp_login_ok = router.route(req_login)
+    assert resp_login_ok.status_code == 302
+    assert resp_login_ok.headers["Location"] == "/timetables"
+
+
+def test_router_basic_auth_header(temp_admin_env):
+    """Verify HTTP Basic Authentication header on protected endpoints."""
+    import base64
+
+    config, _, _ = temp_admin_env
+    router = AdminRouter(config=config)
+
+    # Valid credentials via Authorization header
+    creds = base64.b64encode(b"testadmin:testpassword").decode("ascii")
+    headers = {"Authorization": f"Basic {creds}"}
+
+    req_api = AdminRequest(method="GET", path="/api/timetables", headers=headers)
+    resp_api = router.route(req_api)
+    assert resp_api.status_code == 200
+
+    # Invalid credentials via Authorization header
+    bad_creds = base64.b64encode(b"testadmin:wrongpass").decode("ascii")
+    bad_headers = {"Authorization": f"Basic {bad_creds}"}
+    req_bad = AdminRequest(method="GET", path="/api/timetables", headers=bad_headers)
+    assert router.route(req_bad).status_code == 401
+
+
+def test_auth_cli_and_bash_script(temp_admin_env):
+    """Verify interactive one-by-one approval and clearing via CLI and bash script."""
+    import subprocess
+    from unittest.mock import patch
+    from admin.auth.cli import main as cli_main
+
+    config, _, _ = temp_admin_env
+    auth = AdminAuthenticator(config=config)
+
+    # 1. Register candidates for interactive review
+    auth.register("cliadmin_yes", "secretpass999")
+    auth.register("cliadmin_no", "secretpass888")
+    assert auth.is_confirmed("cliadmin_yes") is False
+    assert auth.is_confirmed("cliadmin_no") is False
+
+    # Simulate interactive input: approve first ('y'), reject second ('n')
+    with patch("builtins.input", side_effect=["y", "n"]):
+        ret = cli_main(["--db-path", config.auth_db_path])
+        assert ret == 0
+
+    # First user is approved
+    assert auth.is_confirmed("cliadmin_yes") is True
+    assert auth.authenticate("cliadmin_yes", "secretpass999") is True
+
+    # Second user was not approved and therefore deleted from the DB
+    assert auth.user_exists("cliadmin_no") is False
+    assert auth.authenticate("cliadmin_no", "secretpass888") is False
+
+    # 2. Test bash script interactive execution with stdin
+    auth.register("bash_approve", "pass_approve_1")
+    auth.register("bash_decline", "pass_decline_2")
+    assert auth.is_confirmed("bash_approve") is False
+    assert auth.is_confirmed("bash_decline") is False
+
+    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "authApproval", "approveAdmins.sh")
+    env = dict(os.environ, ADMIN_AUTH_DB_PATH=config.auth_db_path)
+
+    # Send 'y\nn\n' to bash script
+    res = subprocess.run([script_path], input="y\nn\n", env=env, capture_output=True, text=True)
+    assert res.returncode == 0
+    assert "approved" in res.stdout.lower()
+    assert "removed" in res.stdout.lower()
+
+    # bash_approve should be confirmed
+    assert auth.is_confirmed("bash_approve") is True
+    assert auth.authenticate("bash_approve", "pass_approve_1") is True
+
+    # bash_decline should be removed from database
+    assert auth.user_exists("bash_decline") is False
+
+    # 3. Test clearing non-approved users via bash script
+    auth.register("unwanted1", "pass123456")
+    auth.register("unwanted2", "pass654321")
+    assert len(auth.list_pending_users()) == 2
+
+    res_clear = subprocess.run([script_path, "--clear"], env=env, capture_output=True, text=True)
+    assert res_clear.returncode == 0
+    assert "cleared 2" in res_clear.stdout.lower()
+    assert len(auth.list_pending_users()) == 0
+    assert auth.user_exists("unwanted1") is False
+    assert auth.user_exists("unwanted2") is False
+
+
 def test_router_recs_and_timetables_web_operations(temp_admin_env):
     config, _, _ = temp_admin_env
     router = AdminRouter(config=config)
@@ -392,12 +589,13 @@ def test_admin_http_server_end_to_end(temp_admin_env):
     server_config = AdminConfig(
         host="127.0.0.1",
         port=port,
-        username="admin",
-        password="secretpassword",
+        auth_db_path=config_base.auth_db_path,
         assets_path=config_base.assets_path,
         recs_path=config_base.recs_path,
         timetables_path=config_base.timetables_path,
     )
+    auth = AdminAuthenticator(config=server_config)
+    auth.create_admin_user("admin", "secretpassword", is_confirmed=True)
 
     app = AdminApp(server_config)
     app.run(background=True)
@@ -460,6 +658,7 @@ def test_template_files_exist_and_not_empty():
     expected_templates = [
         "layout.html",
         "login.html",
+        "register.html",
         "recs.html",
         "recs_category_card.html",
         "recs_book_row.html",
@@ -481,17 +680,28 @@ def test_template_files_exist_and_not_empty():
         assert len(content.strip()) > 0, f"Template file {tpl} is empty"
 
 
-def test_template_renderer_login_view():
-    """Verify login page rendering with and without error alerts."""
-    html_normal = AdminTemplateRenderer.render_login()
-    assert "<form" in html_normal
-    assert "BookTower Admin" in html_normal
-    assert 'type="password"' in html_normal
-    assert "alert alert-error" not in html_normal
+def test_template_renderer_login_and_register_view():
+    """Verify login and register page rendering with and without alerts."""
+    html_login = AdminTemplateRenderer.render_login()
+    assert "<form" in html_login
+    assert "BookTower Admin" in html_login
+    assert 'type="password"' in html_login
+    assert "alert alert-error" not in html_login
+    assert "/register" in html_login
 
-    html_error = AdminTemplateRenderer.render_login(error="Неверный логин")
-    assert "alert alert-error" in html_error
-    assert "Неверный логин" in html_error
+    html_login_err = AdminTemplateRenderer.render_login(error="Неверный логин")
+    assert "alert alert-error" in html_login_err
+    assert "Неверный логин" in html_login_err
+
+    html_register = AdminTemplateRenderer.render_register()
+    assert "<form" in html_register
+    assert "Регистрация нового администратора" in html_register
+    assert "/login" in html_register
+    assert "confirm_password" in html_register
+
+    html_reg_ok = AdminTemplateRenderer.render_register(message="Регистрация успешна")
+    assert "alert alert-success" in html_reg_ok
+    assert "Регистрация успешна" in html_reg_ok
 
 
 def test_template_renderer_recs_view():
@@ -677,6 +887,7 @@ def test_no_placeholders_or_english_duplicates_in_templates():
     templates_to_check = [
         "layout.html",
         "login.html",
+        "register.html",
         "recs.html",
         "recs_category_card.html",
         "timetables_list.html",
@@ -744,3 +955,49 @@ def test_android_time_picker_and_default_at_10():
     assert '10:00' in tpl
     assert 'AM' not in tpl
     assert 'PM' not in tpl
+
+
+def test_admin_config_from_env_defaults_and_overrides():
+    """Verify AdminConfig.from_env loads all environment variables correctly."""
+    with patch.dict(os.environ, {}, clear=True):
+        cfg = AdminConfig.from_env()
+        assert cfg.host == "0.0.0.0"
+        assert cfg.port == 8080
+        assert cfg.session_cookie_name == "booktower_admin_session"
+        assert cfg.session_timeout_seconds == 86400
+        assert cfg.auth_db_path.endswith("assets/db/admin_users.db")
+
+    custom_env = {
+        "ADMIN_HOST": "127.0.0.1",
+        "ADMIN_PORT": "9000",
+        "ADMIN_AUTH_DB_PATH": "custom/auth.db",
+        "ADMIN_SESSION_COOKIE_NAME": "custom_cookie",
+        "ADMIN_SESSION_TIMEOUT_SECONDS": "7200",
+        "ASSETS_PATH": "custom_assets",
+        "RECS_PATH": "custom_assets/recs.json",
+        "TIMETABLES_PATH": "custom_assets/timetables",
+    }
+    with patch.dict(os.environ, custom_env, clear=True):
+        cfg = AdminConfig.from_env()
+        assert cfg.host == "127.0.0.1"
+        assert cfg.port == 9000
+        assert cfg.auth_db_path.endswith("custom/auth.db")
+        assert os.path.isabs(cfg.auth_db_path)
+        assert cfg.session_cookie_name == "custom_cookie"
+        assert cfg.session_timeout_seconds == 7200
+        assert cfg.assets_path.endswith("custom_assets")
+        assert cfg.recs_path.endswith("custom_assets/recs.json")
+        assert cfg.timetables_path.endswith("custom_assets/timetables")
+
+
+def test_authenticator_anchored_to_project_root_regardless_of_cwd(tmp_path):
+    """Verify AdminAuthenticator resolves relative paths consistently regardless of CWD."""
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        auth = AdminAuthenticator()
+        assert os.path.isabs(auth.db_path)
+        assert "assets/db/admin_users.db" in auth.db_path
+        assert not auth.db_path.startswith(str(tmp_path))
+    finally:
+        os.chdir(orig_cwd)

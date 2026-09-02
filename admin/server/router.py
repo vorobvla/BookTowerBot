@@ -36,19 +36,34 @@ class AdminRouter:
         if not path:
             path = "/"
 
-        # Public authentication routes
+        # Public authentication and registration routes
         if path == "/login":
             if request.method == "GET":
                 return self._handle_get_login(request)
             if request.method == "POST":
                 return self._handle_post_login(request)
 
+        if path == "/register":
+            if request.method == "GET":
+                return self._handle_get_register(request)
+            if request.method == "POST":
+                return self._handle_post_register(request)
+
         if path == "/logout":
             return self._handle_logout(request)
 
-        # Authentication guard for protected routes
+        # Authentication guard for protected routes (supports Session Cookie & HTTP Basic Auth)
         token = request.get_cookie(self.config.session_cookie_name)
-        if not self.session_manager.is_valid_session(token):
+        is_authenticated = self.session_manager.is_valid_session(token)
+
+        if not is_authenticated:
+            basic_creds = request.get_basic_auth()
+            if basic_creds:
+                u, p = basic_creds
+                if self.authenticator.authenticate(u, p):
+                    is_authenticated = True
+
+        if not is_authenticated:
             if path.startswith("/api/"):
                 return AdminResponse.unauthorized("Authentication required", as_json=True)
             return AdminResponse.redirect("/login")
@@ -112,13 +127,15 @@ class AdminRouter:
 
         return AdminResponse.html("<h1>404 Not Found</h1>", status_code=404)
 
-    # --- Authentication Handlers ---
+    # --- Authentication & Registration Handlers ---
 
     def _handle_get_login(self, request: AdminRequest) -> AdminResponse:
         token = request.get_cookie(self.config.session_cookie_name)
         if self.session_manager.is_valid_session(token):
             return AdminResponse.redirect("/timetables")
-        html = AdminTemplateRenderer.render_login()
+        message = request.query_params.get("msg")
+        error = request.query_params.get("error")
+        html = AdminTemplateRenderer.render_login(error=error, message=message)
         return AdminResponse.html(html)
 
     def _handle_post_login(self, request: AdminRequest) -> AdminResponse:
@@ -130,8 +147,39 @@ class AdminRouter:
             cookie_header = f"{self.config.session_cookie_name}={token}; Path=/; HttpOnly; SameSite=Lax"
             return AdminResponse.redirect("/timetables", cookies=[cookie_header])
 
-        html = AdminTemplateRenderer.render_login(error="Неверное имя пользователя или пароль")
+        if self.authenticator.user_exists(username) and not self.authenticator.is_confirmed(username):
+            error_msg = "Учетная запись ожидает подтверждения администратором"
+        else:
+            error_msg = "Неверное имя пользователя или пароль"
+
+        html = AdminTemplateRenderer.render_login(error=error_msg)
         return AdminResponse.html(html, status_code=401)
+
+    def _handle_get_register(self, request: AdminRequest) -> AdminResponse:
+        token = request.get_cookie(self.config.session_cookie_name)
+        if self.session_manager.is_valid_session(token):
+            return AdminResponse.redirect("/timetables")
+        message = request.query_params.get("msg")
+        error = request.query_params.get("error")
+        html = AdminTemplateRenderer.render_register(error=error, message=message)
+        return AdminResponse.html(html)
+
+    def _handle_post_register(self, request: AdminRequest) -> AdminResponse:
+        username = request.form_data.get("username", "")
+        password = request.form_data.get("password", "")
+        confirm_password = request.form_data.get("confirm_password", "")
+
+        if confirm_password and password != confirm_password:
+            html = AdminTemplateRenderer.render_register(error="Введенные пароли не совпадают")
+            return AdminResponse.html(html, status_code=400)
+
+        success, message = self.authenticator.register(username, password)
+        if success:
+            html = AdminTemplateRenderer.render_register(message=message)
+            return AdminResponse.html(html, status_code=200)
+
+        html = AdminTemplateRenderer.render_register(error=message)
+        return AdminResponse.html(html, status_code=400)
 
     def _handle_logout(self, request: AdminRequest) -> AdminResponse:
         token = request.get_cookie(self.config.session_cookie_name)

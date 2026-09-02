@@ -22,4 +22,9 @@ htmlcov/
 .vscode/
 *.swp
 *.swo
+
+# Assets & Databases
 /assets/
+*.db
+*.sqlite
+*.sqlite3

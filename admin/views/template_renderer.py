@@ -34,17 +34,40 @@ class AdminTemplateRenderer:
         )
 
     @classmethod
-    def render_login(cls, error: Optional[str] = None) -> str:
+    def render_login(cls, error: Optional[str] = None, message: Optional[str] = None) -> str:
         """Render user authentication login page."""
         template = cls.load_template("login.html")
-        error_html = ""
+        alert_html = ""
+        alert_tpl = cls.load_template("alert.html")
         if error:
-            alert_tpl = cls.load_template("alert.html")
-            error_html = (
+            alert_html = (
                 alert_tpl.replace("{{ alert_type }}", "alert-error")
                 .replace("{{ message }}", html.escape(error))
             )
-        return template.replace("{{ error_html }}", error_html)
+        elif message:
+            alert_html = (
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        return template.replace("{{ error_html }}", alert_html)
+
+    @classmethod
+    def render_register(cls, error: Optional[str] = None, message: Optional[str] = None) -> str:
+        """Render user registration page."""
+        template = cls.load_template("register.html")
+        alert_html = ""
+        alert_tpl = cls.load_template("alert.html")
+        if error:
+            alert_html = (
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error))
+            )
+        elif message:
+            alert_html = (
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        return template.replace("{{ error_html }}", alert_html)
 
     @classmethod
     def render_recs(
