@@ -11,9 +11,11 @@ from bot.content import (
     BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     CB_CHILDREN_ACTIVITY,
+    CB_PARTICIPANTS,
 )
 
 # Callback data constants
@@ -28,7 +30,7 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
         [KeyboardButton(BTN_MAP), KeyboardButton(BTN_TIMETABLE)],
         [KeyboardButton(BTN_CHILDREN_ACTIVITY), KeyboardButton(BTN_RECOMMENDATIONS)],
-        [KeyboardButton(BTN_HELP)],
+        [KeyboardButton(BTN_PARTICIPANTS), KeyboardButton(BTN_HELP)],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -45,6 +47,7 @@ def get_main_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(BTN_RECOMMENDATIONS, callback_data=CB_RECOMMENDATIONS),
         ],
         [
+            InlineKeyboardButton(BTN_PARTICIPANTS, callback_data=CB_PARTICIPANTS),
             InlineKeyboardButton(BTN_HELP, callback_data=CB_HELP),
         ],
     ]

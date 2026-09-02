@@ -10,12 +10,14 @@ from bot.content import (
     BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     CHILDREN_ACTIVITY_MESSAGE,
     HELP_MESSAGE,
     MAP_MESSAGE,
     MAP_UNAVAILABLE_MESSAGE,
+    PARTICIPANTS_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
     TIMETABLE_MESSAGE,
@@ -24,6 +26,7 @@ from bot.keyboards import (
     CB_CHILDREN_ACTIVITY,
     CB_HELP,
     CB_MAP,
+    CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
     CB_TIMETABLE,
 )
@@ -32,6 +35,7 @@ from bot.sections import (
     ChildrenActivity,
     Help,
     Map,
+    Participants,
     Recommendations,
     SectionRegistry,
     Start,
@@ -42,6 +46,7 @@ from bot.sections.base import BaseSection as DirectBaseSection
 from bot.sections.children_activity import ChildrenActivity as DirectChildrenActivity
 from bot.sections.help import Help as DirectHelp
 from bot.sections.map import Map as DirectMap
+from bot.sections.participants import Participants as DirectParticipants
 from bot.sections.recommendations import Recommendations as DirectRecommendations
 from bot.sections.registry import SectionRegistry as DirectSectionRegistry
 from bot.sections.start import Start as DirectStart
@@ -407,6 +412,8 @@ def test_section_registry_routing():
     assert isinstance(registry.find_by_command("children"), ChildrenActivity)
     assert isinstance(registry.find_by_command("kids"), ChildrenActivity)
     assert isinstance(registry.find_by_command("recs"), Recommendations)
+    assert isinstance(registry.find_by_command("participants"), Participants)
+    assert isinstance(registry.find_by_command("stands"), Participants)
     assert isinstance(registry.find_by_command("help"), Help)
     assert registry.find_by_command("nonexistent") is None
 
@@ -415,6 +422,7 @@ def test_section_registry_routing():
     assert isinstance(registry.find_by_callback(CB_TIMETABLE), Timetable)
     assert isinstance(registry.find_by_callback(CB_CHILDREN_ACTIVITY), ChildrenActivity)
     assert isinstance(registry.find_by_callback(CB_RECOMMENDATIONS), Recommendations)
+    assert isinstance(registry.find_by_callback(CB_PARTICIPANTS), Participants)
     assert isinstance(registry.find_by_callback(CB_HELP), Help)
     assert registry.find_by_callback("unknown_cb") is None
 
@@ -428,6 +436,9 @@ def test_section_registry_routing():
     assert isinstance(registry.find_by_text("дети"), ChildrenActivity)
     assert isinstance(registry.find_by_text(BTN_RECOMMENDATIONS), Recommendations)
     assert isinstance(registry.find_by_text("рекомендации"), Recommendations)
+    assert isinstance(registry.find_by_text(BTN_PARTICIPANTS), Participants)
+    assert isinstance(registry.find_by_text("участники"), Participants)
+    assert isinstance(registry.find_by_text("стенды"), Participants)
     assert isinstance(registry.find_by_text(BTN_HELP), Help)
     assert isinstance(registry.find_by_text("помощь"), Help)
     assert registry.find_by_text("unrecognized input") is None
@@ -441,4 +452,5 @@ def test_one_class_per_module_imports():
     assert Timetable is DirectTimetable
     assert ChildrenActivity is DirectChildrenActivity
     assert Recommendations is DirectRecommendations
+    assert Participants is DirectParticipants
     assert SectionRegistry is DirectSectionRegistry

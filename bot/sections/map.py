@@ -13,47 +13,47 @@ from bot.sections.base import BaseSection
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"}
+
 
 def get_current_map_path() -> Optional[str]:
     """Retrieve the currently active map path from assets/map directory if it exists."""
-    meta_file = os.path.join(MAP_DIR, "active_map.json")
-    if os.path.exists(meta_file):
+    # 1. Check active_map.json
+    meta_json = os.path.join(MAP_DIR, "active_map.json")
+    if os.path.isfile(meta_json):
         try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                active_name = data.get("active_map")
+            with open(meta_json, "r", encoding="utf-8") as f:
+                active_name = json.load(f).get("active_map")
                 if active_name and isinstance(active_name, str):
-                    target_path = os.path.join(MAP_DIR, active_name)
-                    if os.path.exists(target_path) and os.path.isfile(target_path):
-                        return target_path
+                    candidate = os.path.join(MAP_DIR, active_name)
+                    if os.path.isfile(candidate):
+                        return candidate
         except Exception:
             pass
 
+    # 2. Check active_map.txt
     txt_file = os.path.join(MAP_DIR, "active_map.txt")
-    if os.path.exists(txt_file):
+    if os.path.isfile(txt_file):
         try:
             with open(txt_file, "r", encoding="utf-8") as f:
                 active_name = f.read().strip()
                 if active_name:
-                    target_path = os.path.join(MAP_DIR, active_name)
-                    if os.path.exists(target_path) and os.path.isfile(target_path):
-                        return target_path
+                    candidate = os.path.join(MAP_DIR, active_name)
+                    if os.path.isfile(candidate):
+                        return candidate
         except Exception:
             pass
 
-    map_png = os.path.join(MAP_DIR, "map.png")
-    if os.path.exists(map_png) and os.path.isfile(map_png):
-        return map_png
+    # 3. Check standard default paths
+    for default_path in (os.path.join(MAP_DIR, "map.png"), MAP_PATH):
+        if os.path.isfile(default_path):
+            return default_path
 
-    if os.path.exists(MAP_PATH) and os.path.isfile(MAP_PATH):
-        return MAP_PATH
-
-    # Check if any supported image file exists in MAP_DIR
-    if os.path.exists(MAP_DIR) and os.path.isdir(MAP_DIR):
+    # 4. Check first supported image in MAP_DIR
+    if os.path.isdir(MAP_DIR):
         try:
             for fname in sorted(os.listdir(MAP_DIR)):
-                ext = os.path.splitext(fname)[1].lower()
-                if ext in {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"} and not fname.startswith("."):
+                if not fname.startswith(".") and os.path.splitext(fname)[1].lower() in SUPPORTED_IMAGE_EXTENSIONS:
                     candidate = os.path.join(MAP_DIR, fname)
                     if os.path.isfile(candidate):
                         return candidate
@@ -105,13 +105,30 @@ class Map(BaseSection):
     def image_path(self, value: Optional[str]) -> None:
         self._custom_image_path = value
 
-    def _get_path_mtime(self, path: Optional[str]) -> float:
-        if not path:
-            return 0.0
-        try:
-            return os.path.getmtime(path)
-        except OSError:
-            return 0.0
+    @staticmethod
+    def _get_path_mtime(path: Optional[str]) -> float:
+        if path and os.path.exists(path):
+            try:
+                return os.path.getmtime(path)
+            except OSError:
+                pass
+        return 0.0
+
+    @staticmethod
+    def _is_cache_valid(
+        cached_id: Optional[str],
+        cached_path: Optional[str],
+        cached_mtime: Optional[float],
+        current_path: str,
+        current_mtime: float,
+    ) -> bool:
+        if not cached_id:
+            return False
+        if cached_path is not None and cached_path != current_path:
+            return False
+        if cached_mtime is not None and current_mtime != 0.0 and cached_mtime != current_mtime:
+            return False
+        return True
 
     @property
     def cached_file_id(self) -> Optional[str]:
@@ -123,10 +140,13 @@ class Map(BaseSection):
         current_mtime = self._get_path_mtime(current_path)
 
         # Check instance-level cache
-        if self._cached_file_id is not None:
-            if self._cached_image_path is None or (
-                self._cached_image_path == current_path
-                and (self._cached_mtime is None or current_mtime == 0.0 or self._cached_mtime == current_mtime)
+        if self._cached_file_id:
+            if self._is_cache_valid(
+                self._cached_file_id,
+                self._cached_image_path,
+                self._cached_mtime,
+                current_path,
+                current_mtime,
             ):
                 return self._cached_file_id
             self._cached_file_id = None
@@ -134,29 +154,27 @@ class Map(BaseSection):
             self._cached_mtime = None
 
         # Check global cache
-        if (
-            Map._global_cached_image_path == current_path
-            and Map._global_cached_file_id is not None
+        if self._is_cache_valid(
+            Map._global_cached_file_id,
+            Map._global_cached_image_path,
+            Map._global_cached_mtime,
+            current_path,
+            current_mtime,
         ):
-            if (
-                Map._global_cached_mtime is None
-                or current_mtime == 0.0
-                or Map._global_cached_mtime == current_mtime
-            ):
-                return Map._global_cached_file_id
+            return Map._global_cached_file_id
 
         return None
 
     @cached_file_id.setter
     def cached_file_id(self, value: Optional[str]) -> None:
         current_path = self.image_path
-        self._cached_file_id = value
-        mtime = self._get_path_mtime(current_path) if (current_path and os.path.exists(current_path)) else 0.0
+        mtime = self._get_path_mtime(current_path) if value else 0.0
 
+        self._cached_file_id = value
         self._cached_image_path = current_path if value else None
         self._cached_mtime = mtime if value else None
 
-        if value is not None and current_path is not None:
+        if value and current_path:
             Map._global_cached_file_id = value
             Map._global_cached_image_path = current_path
             Map._global_cached_mtime = mtime
@@ -232,13 +250,11 @@ class Map(BaseSection):
             return
 
         # 3. Store new file_id in cache for subsequent requests
-        if sent_message and hasattr(sent_message, "photo"):
-            photos = getattr(sent_message, "photo", None)
-            if isinstance(photos, (list, tuple)) and photos:
-                last_photo = photos[-1]
-                file_id = getattr(last_photo, "file_id", None)
-                if file_id and isinstance(file_id, str):
-                    self.cached_file_id = file_id
+        photos = getattr(sent_message, "photo", None)
+        if photos and isinstance(photos, (list, tuple)):
+            file_id = getattr(photos[-1], "file_id", None)
+            if file_id and isinstance(file_id, str):
+                self.cached_file_id = file_id
 
 
 MapSection = Map

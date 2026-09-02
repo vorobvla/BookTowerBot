@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
-from bot.content import ASSETS_PATH, MAP_DIR, MAP_PATH, RECS_PATH, TIMETABLES_PATH
+from bot.content import ASSETS_PATH, MAP_DIR, MAP_PATH, PARTICIPANTS_PATH, RECS_PATH, TIMETABLES_PATH
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
@@ -31,6 +31,7 @@ class AdminConfig:
     assets_path: str = ASSETS_PATH
     recs_path: str = RECS_PATH
     timetables_path: str = TIMETABLES_PATH
+    participants_path: str = PARTICIPANTS_PATH
     map_dir: str = MAP_DIR
     map_path: str = MAP_PATH
 
@@ -74,6 +75,7 @@ class AdminConfig:
         assets_path = _resolve_relative_path(os.getenv("ASSETS_PATH", ASSETS_PATH).strip())
         recs_path = _resolve_relative_path(os.getenv("RECS_PATH", os.path.join(assets_path, "recs", "recs.json")).strip())
         timetables_path = _resolve_relative_path(os.getenv("TIMETABLES_PATH", os.path.join(assets_path, "timetables")).strip())
+        participants_path = _resolve_relative_path(os.getenv("PARTICIPANTS_PATH", os.path.join(assets_path, "participants", "participants.json")).strip())
         map_dir = _resolve_relative_path(os.getenv("MAP_DIR", os.path.join(assets_path, "map")).strip())
         map_path = _resolve_relative_path(os.getenv("MAP_PATH", os.path.join(map_dir, "map.png")).strip())
 
@@ -86,6 +88,7 @@ class AdminConfig:
             assets_path=assets_path,
             recs_path=recs_path,
             timetables_path=timetables_path,
+            participants_path=participants_path,
             map_dir=map_dir,
             map_path=map_path,
         )

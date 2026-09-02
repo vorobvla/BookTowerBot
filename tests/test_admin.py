@@ -78,6 +78,22 @@ def temp_admin_env():
         f.write(b"PNG_INITIAL_MAP_CONTENT")
 
     auth_db = os.path.join(temp_dir, "test_admin_users.db")
+    part_dir = os.path.join(temp_dir, "participants")
+    os.makedirs(part_dir, exist_ok=True)
+    part_file = os.path.join(part_dir, "participants.json")
+    initial_parts = {
+        "participants": [
+            {
+                "name": "Издательство МИФ",
+                "stand": "10",
+                "description": "Полезные книги",
+                "link": "https://mif.ru",
+            }
+        ]
+    }
+    with open(part_file, "w", encoding="utf-8") as f:
+        json.dump(initial_parts, f)
+
     config = AdminConfig(
         host="127.0.0.1",
         port=0,
@@ -85,6 +101,7 @@ def temp_admin_env():
         assets_path=temp_dir,
         recs_path=recs_file,
         timetables_path=timetables_dir,
+        participants_path=part_file,
         map_dir=map_dir,
         map_path=map_file,
     )
@@ -514,7 +531,7 @@ def test_auth_cli_and_bash_script(temp_admin_env):
     assert auth.is_confirmed("bash_approve") is False
     assert auth.is_confirmed("bash_decline") is False
 
-    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "authApproval", "approveAdmins.sh")
+    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "auth_approval", "approveAdmins.sh")
     env = dict(os.environ, ADMIN_AUTH_DB_PATH=config.auth_db_path)
 
     # Send 'y\nn\n' to bash script
@@ -1290,7 +1307,7 @@ def test_unsaved_changes_notification_when_changes_staged(temp_admin_env):
         html = resp.body.decode("utf-8")
         assert "Есть несохраненные изменения" in html
         assert "не будут отображаться в боте" in html
-        assert "Сохранить и обновить бота" in html
+        assert "Сохранить изменения и обновить бота" in html
 
     # 2. Discard changes -> banner disappears
     router.route(AdminRequest("POST", "/discard-changes", headers=headers))
@@ -1500,3 +1517,105 @@ def test_admin_router_toggle_and_edit_events(temp_admin_env):
     assert updated_event["title"] == "Обновленный воркшоп"
     assert updated_event["location"] == "Новый зал"
     assert updated_event["is_children_activity"] is False
+
+
+def test_admin_router_participants_crud_and_api(temp_admin_env):
+    """Verify router handles participants web and API routes."""
+    config, _, _ = temp_admin_env
+    router = AdminRouter(config=config)
+    token = router.session_manager.create_session()
+    cookie_hdr = f"{config.session_cookie_name}={token}"
+    headers_form = {"Cookie": cookie_hdr, "Content-Type": "application/x-www-form-urlencoded"}
+    headers_json = {"Cookie": cookie_hdr, "Content-Type": "application/json"}
+
+    # 1. GET /participants HTML view
+    req_view = AdminRequest(method="GET", path="/participants", headers={"Cookie": cookie_hdr})
+    resp_view = router.route(req_view)
+    assert resp_view.status_code == 200
+    html_content = resp_view.body.decode("utf-8")
+    assert "Управление участниками и стендами" in html_content
+    assert "Издательство МИФ" in html_content
+    assert "10" in html_content
+
+    # 2. POST /participants/add
+    req_add_invalid = AdminRequest(
+        method="POST",
+        path="/participants/add",
+        headers=headers_form,
+        body=b"name=%D0%90%D0%BB%D1%8C%D0%BF%D0%B8%D0%BD%D0%B0&stand=2&link=bad_url&description=%D0%9A%D0%BD%D0%B8%D0%B3%D0%B8",
+    )
+    resp_add_invalid = router.route(req_add_invalid)
+    assert resp_add_invalid.status_code == 302
+    assert "error=" in resp_add_invalid.headers["Location"]
+
+    req_add = AdminRequest(
+        method="POST",
+        path="/participants/add",
+        headers=headers_form,
+        body=b"name=%D0%90%D0%BB%D1%8C%D0%BF%D0%B8%D0%BD%D0%B0&stand=2&link=https%3A%2F%2Falpina.ru&description=%D0%9A%D0%BD%D0%B8%D0%B3%D0%B8",
+    )
+    resp_add = router.route(req_add)
+    assert resp_add.status_code == 302
+    assert resp_add.headers["Location"].startswith("/participants?msg=")
+    assert router.has_unsaved_changes()
+
+    # Verify sorting: Альпина (stand 2) comes before МИФ (stand 10)
+    parts = router.participants_service.get_participants()
+    assert len(parts) == 2
+    assert parts[0].name == "Альпина"
+    assert parts[0].stand == "2"
+
+    # 3. POST /participants/update
+    req_update = AdminRequest(
+        method="POST",
+        path="/participants/update",
+        headers=headers_form,
+        body=b"participant_index=0&name=%D0%90%D0%BB%D1%8C%D0%BF%D0%B8%D0%BD%D0%B0+%D0%9F%D0%B0%D0%B1%D0%BB%D0%B8%D1%88%D0%B5%D1%80&stand=1&link=https%3A%2F%2Falpina.ru&description=%D0%91%D0%B8%D0%B7%D0%BD%D0%B5%D1%81",
+    )
+    resp_update = router.route(req_update)
+    assert resp_update.status_code == 302
+    assert router.participants_service.get_participants()[0].name == "Альпина Паблишер"
+    assert router.participants_service.get_participants()[0].stand == "1"
+
+    # 4. POST /participants/delete
+    req_delete = AdminRequest(
+        method="POST",
+        path="/participants/delete",
+        headers=headers_form,
+        body=b"participant_index=1",
+    )
+    resp_delete = router.route(req_delete)
+    assert resp_delete.status_code == 302
+    assert len(router.participants_service.get_participants()) == 1
+
+    # 5. Global /discard-changes
+    req_discard = AdminRequest(method="POST", path="/discard-changes", headers=headers_form)
+    resp_discard = router.route(req_discard)
+    assert resp_discard.status_code == 302
+    assert not router.has_unsaved_changes()
+    assert len(router.participants_service.get_participants()) == 1
+    assert router.participants_service.get_participants()[0].name == "Издательство МИФ"
+
+    # 6. API GET /api/participants
+    req_api_get = AdminRequest(method="GET", path="/api/participants", headers=headers_json)
+    resp_api_get = router.route(req_api_get)
+    assert resp_api_get.status_code == 200
+    api_get_data = json.loads(resp_api_get.body.decode("utf-8"))
+    assert "participants" in api_get_data
+
+    # 7. API POST /api/participants/add
+    req_api_add = AdminRequest(
+        method="POST",
+        path="/api/participants/add",
+        headers=headers_json,
+        body=json.dumps({"name": "Самокат", "stand": "A-1", "link": "https://samokat.ru"}).encode("utf-8"),
+    )
+    resp_api_add = router.route(req_api_add)
+    assert resp_api_add.status_code == 201
+    assert len(router.participants_service.get_participants()) == 2
+
+    # 8. API POST /api/save
+    req_api_save = AdminRequest(method="POST", path="/api/save", headers=headers_json)
+    resp_api_save = router.route(req_api_save)
+    assert resp_api_save.status_code == 200
+    assert not router.has_unsaved_changes()

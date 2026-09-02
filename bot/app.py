@@ -15,6 +15,7 @@ from bot.handlers import (
     children_activity_handler,
     help_handler,
     map_handler,
+    participants_handler,
     recommendations_handler,
     start_handler,
     text_message_handler,
@@ -33,6 +34,7 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("timetables", timetable_handler))
     app.add_handler(CommandHandler(["children", "children_activity", "kids"], children_activity_handler))
     app.add_handler(CommandHandler(["recommendations", "recs"], recommendations_handler))
+    app.add_handler(CommandHandler(["participants", "stands", "vendors", "part"], participants_handler))
 
     # Callback query handler for inline keyboard buttons
     app.add_handler(CallbackQueryHandler(button_callback_handler))

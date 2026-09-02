@@ -11,6 +11,7 @@ from bot.sections import (
     ChildrenActivity,
     Help,
     Map,
+    Participants,
     Recommendations,
     Start,
     Timetable,
@@ -26,6 +27,7 @@ map_section = Map()
 timetable_section = Timetable()
 children_activity_section = ChildrenActivity()
 recommendations_section = Recommendations()
+participants_section = Participants()
 
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -56,6 +58,11 @@ async def children_activity_handler(update: Update, context: ContextTypes.DEFAUL
 async def recommendations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /recommendations and /recs commands."""
     await recommendations_section.handle(update, context)
+
+
+async def participants_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /participants, /stands, and /vendors commands."""
+    await participants_section.handle(update, context)
 
 
 async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

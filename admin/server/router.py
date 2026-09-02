@@ -9,6 +9,7 @@ from admin.config import AdminConfig
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
 from admin.services.map_service import AdminMapService
+from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
 from admin.views.template_renderer import AdminTemplateRenderer
@@ -25,6 +26,7 @@ class AdminRouter:
         recs_service: Optional[AdminRecsService] = None,
         timetable_service: Optional[AdminTimetableService] = None,
         map_service: Optional[AdminMapService] = None,
+        participants_service: Optional[AdminParticipantsService] = None,
     ):
         self.config = config or AdminConfig.from_env()
         self.authenticator = authenticator or AdminAuthenticator(self.config)
@@ -32,6 +34,7 @@ class AdminRouter:
         self.recs_service = recs_service or AdminRecsService(self.config.recs_path)
         self.timetable_service = timetable_service or AdminTimetableService(self.config.timetables_path)
         self.map_service = map_service or AdminMapService(self.config.map_dir)
+        self.participants_service = participants_service or AdminParticipantsService(self.config.participants_path)
 
     def route(self, request: AdminRequest) -> AdminResponse:
         """Route request to the appropriate handler."""
@@ -98,6 +101,16 @@ class AdminRouter:
             return self._handle_post_recs_book_update(request)
         if path == "/recs/book/delete" and request.method == "POST":
             return self._handle_post_recs_book_delete(request)
+
+        # Participants Web Routes
+        if path == "/participants":
+            return self._handle_get_participants(request)
+        if path == "/participants/add" and request.method == "POST":
+            return self._handle_post_participants_add(request)
+        if path == "/participants/update" and request.method == "POST":
+            return self._handle_post_participants_update(request)
+        if path == "/participants/delete" and request.method == "POST":
+            return self._handle_post_participants_delete(request)
 
         # Timetables Web Routes
         if path == "/timetables":
@@ -236,6 +249,7 @@ class AdminRouter:
             self.recs_service.save_to_disk()
             self.timetable_service.save_to_disk()
             self.map_service.save_to_disk()
+            self.participants_service.save_to_disk()
             return AdminResponse.redirect(redirect_target + "?msg=" + quote("Все изменения сохранены и информация бота обновлена!"))
         except Exception as e:
             return AdminResponse.redirect(redirect_target + "?error=" + quote(str(e)))
@@ -246,6 +260,7 @@ class AdminRouter:
             self.recs_service.discard_changes()
             self.timetable_service.discard_changes()
             self.map_service.discard_changes()
+            self.participants_service.discard_changes()
             return AdminResponse.redirect(redirect_target + "?msg=" + quote("Все несохраненные изменения отменены"))
         except Exception as e:
             return AdminResponse.redirect(redirect_target + "?error=" + quote(str(e)))
@@ -256,6 +271,7 @@ class AdminRouter:
             self.recs_service.has_pending_changes()
             or self.timetable_service.has_pending_changes()
             or self.map_service.has_pending_changes()
+            or self.participants_service.has_pending_changes()
         )
 
     # --- Recommendations Web Handlers ---
@@ -359,6 +375,64 @@ class AdminRouter:
             return AdminResponse.redirect("/recs?msg=" + quote("Книга удалена"))
         except Exception as e:
             return AdminResponse.redirect("/recs?error=" + quote(str(e)))
+
+    # --- Participants Web Handlers ---
+
+    def _handle_get_participants(self, request: AdminRequest) -> AdminResponse:
+        participants = self.participants_service.get_participants()
+        error = request.query_params.get("error")
+        message = request.query_params.get("msg")
+        html = AdminTemplateRenderer.render_participants(
+            participants,
+            error_msg=error,
+            success_msg=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
+        return AdminResponse.html(html)
+
+    def _handle_post_participants_add(self, request: AdminRequest) -> AdminResponse:
+        name = request.form_data.get("name", "")
+        stand = request.form_data.get("stand", "")
+        link = request.form_data.get("link", "")
+        description = request.form_data.get("description", "")
+        try:
+            self.participants_service.add_participant(
+                name=name,
+                stand=stand,
+                link=link,
+                description=description,
+            )
+            return AdminResponse.redirect("/participants?msg=" + quote(f"Участник «{name}» добавлен"))
+        except Exception as e:
+            return AdminResponse.redirect("/participants?error=" + quote(str(e)))
+
+    def _handle_post_participants_update(self, request: AdminRequest) -> AdminResponse:
+        index_str = request.form_data.get("participant_index", "0")
+        name = request.form_data.get("name", "")
+        stand = request.form_data.get("stand", "")
+        link = request.form_data.get("link", "")
+        description = request.form_data.get("description", "")
+        try:
+            index = int(index_str)
+            self.participants_service.update_participant(
+                participant_index=index,
+                name=name,
+                stand=stand,
+                link=link,
+                description=description,
+            )
+            return AdminResponse.redirect("/participants?msg=" + quote(f"Участник «{name}» обновлен"))
+        except Exception as e:
+            return AdminResponse.redirect("/participants?error=" + quote(str(e)))
+
+    def _handle_post_participants_delete(self, request: AdminRequest) -> AdminResponse:
+        index_str = request.form_data.get("participant_index", "0")
+        try:
+            index = int(index_str)
+            self.participants_service.delete_participant(index)
+            return AdminResponse.redirect("/participants?msg=" + quote("Участник удален"))
+        except Exception as e:
+            return AdminResponse.redirect("/participants?error=" + quote(str(e)))
 
     # --- Timetables Web Handlers ---
 
@@ -580,12 +654,14 @@ class AdminRouter:
             self.recs_service.save_to_disk()
             self.timetable_service.save_to_disk()
             self.map_service.save_to_disk()
+            self.participants_service.save_to_disk()
             return AdminResponse.json({"status": "ok"})
 
         if path == "/api/discard" and request.method == "POST":
             self.recs_service.discard_changes()
             self.timetable_service.discard_changes()
             self.map_service.discard_changes()
+            self.participants_service.discard_changes()
             return AdminResponse.json({"status": "ok"})
 
         if path == "/api/map":
@@ -635,6 +711,42 @@ class AdminRouter:
                 data = request.json() or {}
                 self.recs_service.save_data(data)
                 return AdminResponse.json({"status": "ok"})
+
+        if path == "/api/participants":
+            if request.method == "GET":
+                return AdminResponse.json(self.participants_service.load_data())
+            if request.method == "POST":
+                data = request.json() or {}
+                self.participants_service.save_data(data)
+                return AdminResponse.json({"status": "ok"})
+
+        if path == "/api/participants/add" and request.method == "POST":
+            payload = request.json() or {}
+            self.participants_service.add_participant(
+                name=payload.get("name", ""),
+                stand=payload.get("stand", ""),
+                link=payload.get("link", ""),
+                description=payload.get("description", ""),
+            )
+            return AdminResponse.json({"status": "ok"}, status_code=201)
+
+        if path == "/api/participants/update" and request.method == "POST":
+            payload = request.json() or {}
+            idx = int(payload.get("participant_index", 0))
+            self.participants_service.update_participant(
+                participant_index=idx,
+                name=payload.get("name", ""),
+                stand=payload.get("stand", ""),
+                link=payload.get("link", ""),
+                description=payload.get("description", ""),
+            )
+            return AdminResponse.json({"status": "ok"})
+
+        if path == "/api/participants/delete" and request.method == "POST":
+            payload = request.json() or {}
+            idx = int(payload.get("participant_index", 0))
+            self.participants_service.delete_participant(idx)
+            return AdminResponse.json({"status": "ok"})
 
         if path == "/api/locations" and request.method == "GET":
             return AdminResponse.json(self.timetable_service.get_all_locations())

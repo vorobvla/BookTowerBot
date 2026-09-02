@@ -33,7 +33,7 @@ class BaseSection(ABC):
 
     def get_reply_markup(self, inline: bool = False):
         """Return appropriate keyboard markup based on context."""
-        if inline or not self.use_reply_keyboard:
+        if inline:
             return get_main_inline_keyboard()
         return get_main_reply_keyboard()
 

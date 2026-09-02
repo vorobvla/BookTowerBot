@@ -10,11 +10,13 @@ from bot.content import (
     BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     CHILDREN_ACTIVITY_MESSAGE,
     HELP_MESSAGE,
     MAP_MESSAGE,
+    PARTICIPANTS_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
     TIMETABLE_MESSAGE,
@@ -25,6 +27,7 @@ from bot.handlers import (
     children_activity_handler,
     help_handler,
     map_handler,
+    participants_handler,
     recommendations_handler,
     start_handler,
     text_message_handler,
@@ -34,6 +37,7 @@ from bot.keyboards import (
     CB_CHILDREN_ACTIVITY,
     CB_HELP,
     CB_MAP,
+    CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
     CB_TIMETABLE,
 )
@@ -177,6 +181,19 @@ async def test_recommendations_handler():
 
 
 @pytest.mark.asyncio
+async def test_participants_handler():
+    update = create_mock_update_message("/participants")
+    context = MagicMock()
+
+    await participants_handler(update, context)
+
+    update.effective_message.reply_text.assert_awaited_once()
+    kwargs = update.effective_message.reply_text.call_args.kwargs
+    assert kwargs["text"] == PARTICIPANTS_MESSAGE
+    assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+
+
+@pytest.mark.asyncio
 async def test_button_callback_handler_map():
     update = create_mock_update_callback(CB_MAP)
     context = MagicMock()
@@ -225,6 +242,27 @@ async def test_button_callback_handler_recommendations_flow():
     assert "Нонфикшн" in kwargs_cat["text"]
     assert "Книга Жопова" in kwargs_cat["text"]
     assert kwargs_cat["reply_markup"] is not None
+
+
+@pytest.mark.asyncio
+async def test_button_callback_handler_participants_flow():
+    # 1. Click participants -> returns list of participants
+    update_parts = create_mock_update_callback(CB_PARTICIPANTS)
+    context = MagicMock()
+    await button_callback_handler(update_parts, context)
+    update_parts.callback_query.answer.assert_awaited_once()
+    update_parts.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_parts = update_parts.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs_parts["text"] == PARTICIPANTS_MESSAGE
+    assert kwargs_parts["reply_markup"] is not None
+
+    # 2. Click participant item -> returns details
+    update_item = create_mock_update_callback("part_item:0")
+    await button_callback_handler(update_item, context)
+    update_item.callback_query.answer.assert_awaited_once()
+    update_item.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_item = update_item.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs_item["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
@@ -326,6 +364,10 @@ async def test_text_message_handler_map_inputs(button_text):
         (BTN_RECOMMENDATIONS, RECOMMENDATIONS_MESSAGE),
         ("recs", RECOMMENDATIONS_MESSAGE),
         ("рекомендации", RECOMMENDATIONS_MESSAGE),
+        (BTN_PARTICIPANTS, PARTICIPANTS_MESSAGE),
+        ("participants", PARTICIPANTS_MESSAGE),
+        ("участники", PARTICIPANTS_MESSAGE),
+        ("стенды", PARTICIPANTS_MESSAGE),
         (BTN_HELP, HELP_MESSAGE),
         ("help", HELP_MESSAGE),
         ("помощь", HELP_MESSAGE),

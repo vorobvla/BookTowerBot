@@ -1,0 +1,19 @@
+<tr>
+    <td><span class="badge" style="font-size: 0.95rem; font-weight: 600;">{{ stand }}</span></td>
+    <td><strong>{{ name }}</strong></td>
+    <td>{{ link_html }}</td>
+    <td><small>{{ description }}</small></td>
+    <td style="white-space: nowrap;">
+        <button type="button" class="btn btn-secondary btn-sm"
+            data-index="{{ participant_index }}"
+            data-stand="{{ stand_raw }}"
+            data-name="{{ name_raw }}"
+            data-link="{{ link_raw }}"
+            data-description="{{ description_raw }}"
+            onclick="openEditPartModal(this)">✏️ Редактировать</button>
+        <form method="POST" action="/participants/delete" style="display:inline;" onsubmit="return confirm('Удалить участника «{{ name_raw }}»?');">
+            <input type="hidden" name="participant_index" value="{{ participant_index }}">
+            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+        </form>
+    </td>
+</tr>

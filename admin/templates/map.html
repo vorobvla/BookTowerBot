@@ -11,8 +11,8 @@
     <!-- Active Map Card -->
     <div class="card" style="margin-bottom: 0;">
         <h3 style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px;">
-            <span>Текущая активная карта</span>
-            <span style="background: #10b981; color: #ffffff; font-size: 0.75rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">Активна в боте</span>
+            <span>Выбранная карта</span>
+            {{ unsaved_changes_banner }}
         </h3>
         {{ active_map_content }}
     </div>

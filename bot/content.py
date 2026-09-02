@@ -28,6 +28,7 @@ MAP_DIR = _resolve_relative_path(os.getenv("MAP_DIR", os.path.join(ASSETS_PATH, 
 MAP_PATH = _resolve_relative_path(os.getenv("MAP_PATH", os.path.join(MAP_DIR, "map.png")))
 TIMETABLES_PATH = _resolve_relative_path(os.getenv("TIMETABLES_PATH", os.path.join(ASSETS_PATH, "timetables")))
 RECS_PATH = _resolve_relative_path(os.getenv("RECS_PATH", os.path.join(ASSETS_PATH, "recs", "recs.json")))
+PARTICIPANTS_PATH = _resolve_relative_path(os.getenv("PARTICIPANTS_PATH", os.path.join(ASSETS_PATH, "participants", "participants.json")))
 
 START_MESSAGE = (
     "📚 *Добро пожаловать в BookTowerBot!*\n\n"
@@ -37,6 +38,7 @@ START_MESSAGE = (
     "• 📅 /timetables — Расписание выступлений и автограф-сессий\n"
     "• 🎈 /children — Детская программа мероприятий\n"
     "• 📚 /recommendations — Рекомендации книг и стендов\n"
+    "• 👥 /participants — Список участников и номера их стендов\n"
     "• ℹ️ /help — Справка и помощь\n\n"
     "Пожалуйста, выберите интересующий раздел:"
 )
@@ -49,12 +51,14 @@ HELP_MESSAGE = (
     "• `/timetables` — Расписание событий и мероприятий\n"
     "• `/children` — Детская программа мероприятий\n"
     "• `/recommendations` или `/recs` — Подборка рекомендаций\n"
+    "• `/participants` — Список участников и расположение их стендов\n"
     "• `/help` — Показать это справочное сообщение\n\n"
     "Вы также можете в любой момент воспользоваться кнопками меню."
 )
 
 MAP_MESSAGE = (
-    ""
+    "Легенда карты:\n"
+    "• 🔹 — Стенд с книгами\n"
 )
 
 MAP_UNAVAILABLE_MESSAGE = (
@@ -78,6 +82,11 @@ RECOMMENDATIONS_MESSAGE = (
     "Пожалуйста, выберите интересующую вас подборку:"
 )
 
+PARTICIPANTS_MESSAGE = (
+    "👥 *Участники ярмарки*\n\n"
+    "Пожалуйста, выберите участника, чтобы узнать подробную информацию и номер стенда:"
+)
+
 UNKNOWN_COMMAND_MESSAGE = (
     "Команда не распознана. Пожалуйста, используйте кнопки меню ниже "
     "или введите `/help`, чтобы посмотреть все доступные опции."
@@ -88,5 +97,7 @@ BTN_MAP = "🏢 План ярмарки"
 BTN_TIMETABLE = "📅 Расписание"
 BTN_CHILDREN_ACTIVITY = "🎈 Детская программа"
 BTN_RECOMMENDATIONS = "📚 Рекомендации"
+BTN_PARTICIPANTS = "👥 Участники"
 BTN_HELP = "ℹ️ Помощь"
 CB_CHILDREN_ACTIVITY = "section_children_activity"
+CB_PARTICIPANTS = "action_participants"

@@ -4,6 +4,7 @@ import html
 import os
 from typing import Any, Dict, List, Optional
 
+from bot.participants.participant import Participant
 from bot.recommendations.category import RecommendationCategory
 from bot.timetable.day import DayTimetable
 
@@ -34,12 +35,15 @@ class AdminTemplateRenderer:
         timetables_active = "active" if active_tab == "timetables" else ""
         recs_active = "active" if active_tab == "recs" else ""
         map_active = "active" if active_tab == "map" else ""
+        participants_active = "active" if active_tab == "participants" else ""
 
         if return_to_path is None:
             if active_tab == "map":
                 return_to_path = "/map"
             elif active_tab == "recs":
                 return_to_path = "/recs"
+            elif active_tab == "participants":
+                return_to_path = "/participants"
             else:
                 return_to_path = "/timetables"
 
@@ -57,7 +61,7 @@ class AdminTemplateRenderer:
                     <form method="POST" action="/save-changes" style="margin: 0;" onsubmit="return confirm('Сохранить все изменения и обновить информацию бота?');">
                         <input type="hidden" name="return_to" value="{html.escape(return_to_path)}">
                         <button type="submit" class="btn" style="background-color: #f59e0b; color: #ffffff; font-weight: 600; padding: 0.45rem 0.9rem; font-size: 0.85rem;">
-                            Сохранить и обновить бота
+                            Сохранить изменения и обновить бота
                         </button>
                     </form>
                 </div>
@@ -73,6 +77,7 @@ class AdminTemplateRenderer:
             .replace("{{ timetables_active }}", timetables_active)
             .replace("{{ recs_active }}", recs_active)
             .replace("{{ map_active }}", map_active)
+            .replace("{{ participants_active }}", participants_active)
             .replace("{{ return_to_path }}", html.escape(return_to_path))
             .replace("{{ unsaved_changes_banner }}", banner_html)
             .replace("{{ unsaved_changes_bar_notice }}", bar_notice_html)
@@ -435,16 +440,92 @@ class AdminTemplateRenderer:
                 rows.append(row_rendered)
             map_rows = "".join(rows)
 
+        upload_btn = f"""
+        <div style="display: flex; gap: 8px; flex-shrink: 0;">
+            <form method="POST" action="/save-changes" style="margin: 0;" onsubmit="return confirm('Сохранить все изменения и обновить информацию бота?');">
+                <button type="submit" class="btn" style="background-color: #f59e0b; color: #ffffff; font-weight: 600; padding: 0.45rem 0.9rem; font-size: 0.85rem;">
+                    Сохранить и обновить бота
+                </button>
+            </form>
+        </div>
+        """ if has_unsaved_changes else ""
+
         map_tpl = cls.load_template("map.html")
         content = (
             map_tpl.replace("{{ alerts_html }}", alerts_html)
             .replace("{{ active_map_content }}", active_map_content)
             .replace("{{ map_rows }}", map_rows)
+            .replace("{{ unsaved_changes_banner }}", upload_btn)
         )
 
         return cls._render_layout(
             title="Управление картой ярмарки",
             content=content,
             active_tab="map",
+            has_unsaved_changes=has_unsaved_changes,
+        )
+
+    @classmethod
+    def render_participants(
+        cls,
+        participants: List[Participant],
+        has_unsaved_changes: bool = False,
+        error_msg: Optional[str] = None,
+        success_msg: Optional[str] = None,
+    ) -> str:
+        """Render participants management view with participant list, add card, and edit modal."""
+        alert_tpl = cls.load_template("alert.html")
+        alerts = []
+        if error_msg:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error_msg))
+            )
+        if success_msg:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(success_msg))
+            )
+        alerts_html = "".join(alerts)
+
+        if not participants:
+            participants_rows = cls.load_template("participants_empty_row.html")
+        else:
+            row_tpl = cls.load_template("participants_row.html")
+            rows = []
+            for idx, p in enumerate(participants):
+                link_href = p.link
+                if link_href and not link_href.startswith(("http://", "https://")):
+                    link_href = f"https://{link_href}"
+                link_html = (
+                    f'<a href="{html.escape(link_href)}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: none;">🔗 {html.escape(p.link)}</a>'
+                    if p.link
+                    else '<span style="color: var(--text-muted); font-size: 0.85rem;">—</span>'
+                )
+                row_rendered = (
+                    row_tpl.replace("{{ participant_index }}", str(idx))
+                    .replace("{{ stand }}", html.escape(p.stand))
+                    .replace("{{ stand_raw }}", html.escape(p.stand, quote=True))
+                    .replace("{{ name }}", html.escape(p.name))
+                    .replace("{{ name_raw }}", html.escape(p.name, quote=True))
+                    .replace("{{ link_html }}", link_html)
+                    .replace("{{ link_raw }}", html.escape(p.link, quote=True))
+                    .replace("{{ description }}", html.escape(p.description) if p.description else '<span style="color: var(--text-muted); font-size: 0.85rem;">—</span>')
+                    .replace("{{ description_raw }}", html.escape(p.description, quote=True))
+                )
+                rows.append(row_rendered)
+            participants_rows = "".join(rows)
+
+        part_tpl = cls.load_template("participants.html")
+        content = (
+            part_tpl.replace("{{ alerts_html }}", alerts_html)
+            .replace("{{ participants_count }}", str(len(participants)))
+            .replace("{{ participants_rows }}", participants_rows)
+        )
+
+        return cls._render_layout(
+            title="Управление участниками и стендами",
+            content=content,
+            active_tab="participants",
             has_unsaved_changes=has_unsaved_changes,
         )

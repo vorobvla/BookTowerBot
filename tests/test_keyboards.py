@@ -4,9 +4,11 @@ from bot.content import (
     BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
     CB_CHILDREN_ACTIVITY,
+    CB_PARTICIPANTS,
 )
 from bot.keyboards import (
     CB_HELP,
@@ -26,7 +28,7 @@ def test_get_main_reply_keyboard():
     assert buttons == [
         [BTN_MAP, BTN_TIMETABLE],
         [BTN_CHILDREN_ACTIVITY, BTN_RECOMMENDATIONS],
-        [BTN_HELP],
+        [BTN_PARTICIPANTS, BTN_HELP],
     ]
 
 
@@ -40,6 +42,6 @@ def test_get_main_inline_keyboard():
     expected = [
         [(BTN_MAP, CB_MAP), (BTN_TIMETABLE, CB_TIMETABLE)],
         [(BTN_CHILDREN_ACTIVITY, CB_CHILDREN_ACTIVITY), (BTN_RECOMMENDATIONS, CB_RECOMMENDATIONS)],
-        [(BTN_HELP, CB_HELP)],
+        [(BTN_PARTICIPANTS, CB_PARTICIPANTS), (BTN_HELP, CB_HELP)],
     ]
     assert inline_buttons == expected

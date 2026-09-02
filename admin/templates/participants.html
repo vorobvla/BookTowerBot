@@ -1,0 +1,184 @@
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2>👥 Управление участниками и стендами</h2>
+        <p style="color: var(--text-muted);">Редактирование списка участников, номеров стендов, ссылок и описаний для бота.</p>
+    </div>
+</div>
+
+{{ alerts_html }}
+
+<div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
+    <h4 style="margin-bottom: 0.75rem; color: #1e40af;">+ Добавить нового участника</h4>
+    <form method="POST" action="/participants/add" id="addParticipantForm">
+        <div class="grid" style="grid-template-columns: 1fr 2fr 2fr;">
+            <div class="form-group">
+                <label class="required">Номер стенда</label>
+                <input type="text" name="stand" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="required">Имя / Название участника</label>
+                <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Ссылка</label>
+                <input type="text" id="addPartLink" name="link" class="form-control" autocomplete="off">
+                <div id="addPartLinkFeedback" style="display: none; font-size: 0.8rem; margin-top: 0.25rem;"></div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Описание</label>
+            <textarea name="description" class="form-control" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn" style="height: 38px;">Добавить участника</button>
+    </form>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <div>
+            <h3 style="margin: 0; display: inline;">Список участников</h3>
+            <span style="color: var(--text-muted); font-size: 0.9rem; margin-left: 0.5rem;">({{ participants_count }} участников)</span>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 120px;">Стенд</th>
+                <th>Участник</th>
+                <th>Ссылка</th>
+                <th>Описание</th>
+                <th style="width: 200px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ participants_rows }}
+        </tbody>
+    </table>
+</div>
+
+<!-- Edit Participant Modal -->
+<div id="editPartModalBackdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 650px; margin: 1rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+            <h3 style="margin: 0; color: #1e293b;">✏️ Редактирование участника</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeEditPartModal()" style="font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.5rem;">✕</button>
+        </div>
+        <form method="POST" action="/participants/update" id="editParticipantForm">
+            <input type="hidden" id="editPartIndex" name="participant_index" value="0">
+            <div class="grid" style="grid-template-columns: 1fr 2fr;">
+                <div class="form-group">
+                    <label class="required">Номер стенда</label>
+                    <input type="text" id="editPartStand" name="stand" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="required">Имя / Название участника</label>
+                    <input type="text" id="editPartName" name="name" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Ссылка</label>
+                <input type="text" id="editPartLink" name="link" class="form-control" autocomplete="off">
+                <div id="editPartLinkFeedback" style="display: none; font-size: 0.8rem; margin-top: 0.25rem;"></div>
+            </div>
+            <div class="form-group">
+                <label>Описание</label>
+                <textarea id="editPartDesc" name="description" class="form-control" rows="3"></textarea>
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditPartModal()">Отмена</button>
+                <button type="submit" class="btn">Сохранить изменения</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+var URL_REGEX = /^(?:https?:\/\/)?(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|localhost|\d{1,3}(?:\.\d{1,3}){3})(?::\d{1,5})?(?:[/?#]\S*)?$/i;
+
+function validateUrlInput(inputEl, feedbackEl) {
+    if (!inputEl || !feedbackEl) return true;
+    var val = inputEl.value.trim();
+    if (val === '') {
+        inputEl.style.borderColor = '';
+        inputEl.style.boxShadow = '';
+        feedbackEl.style.display = 'none';
+        feedbackEl.textContent = '';
+        inputEl.setCustomValidity('');
+        return true;
+    }
+    if (URL_REGEX.test(val)) {
+        inputEl.style.borderColor = '#10b981';
+        inputEl.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.2)';
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.color = '#059669';
+        feedbackEl.textContent = '✓ Корректный URL';
+        inputEl.setCustomValidity('');
+        return true;
+    } else {
+        inputEl.style.borderColor = '#ef4444';
+        inputEl.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.color = '#dc2626';
+        feedbackEl.textContent = '✗ Некорректный формат URL (например: example.com или https://example.com)';
+        inputEl.setCustomValidity('Некорректный формат URL');
+        return false;
+    }
+}
+
+var addLinkInput = document.getElementById('addPartLink');
+var addLinkFeedback = document.getElementById('addPartLinkFeedback');
+if (addLinkInput && addLinkFeedback) {
+    addLinkInput.addEventListener('input', function() {
+        validateUrlInput(addLinkInput, addLinkFeedback);
+    });
+    addLinkInput.addEventListener('blur', function() {
+        validateUrlInput(addLinkInput, addLinkFeedback);
+    });
+}
+
+var editLinkInput = document.getElementById('editPartLink');
+var editLinkFeedback = document.getElementById('editPartLinkFeedback');
+if (editLinkInput && editLinkFeedback) {
+    editLinkInput.addEventListener('input', function() {
+        validateUrlInput(editLinkInput, editLinkFeedback);
+    });
+    editLinkInput.addEventListener('blur', function() {
+        validateUrlInput(editLinkInput, editLinkFeedback);
+    });
+}
+
+document.getElementById('addParticipantForm').addEventListener('submit', function(e) {
+    if (!validateUrlInput(addLinkInput, addLinkFeedback)) {
+        e.preventDefault();
+        addLinkInput.focus();
+    }
+});
+
+document.getElementById('editParticipantForm').addEventListener('submit', function(e) {
+    if (!validateUrlInput(editLinkInput, editLinkFeedback)) {
+        e.preventDefault();
+        editLinkInput.focus();
+    }
+});
+
+function openEditPartModal(btn) {
+    document.getElementById('editPartIndex').value = btn.getAttribute('data-index') || '0';
+    document.getElementById('editPartStand').value = btn.getAttribute('data-stand') || '';
+    document.getElementById('editPartName').value = btn.getAttribute('data-name') || '';
+    document.getElementById('editPartLink').value = btn.getAttribute('data-link') || '';
+    document.getElementById('editPartDesc').value = btn.getAttribute('data-description') || '';
+    validateUrlInput(editLinkInput, editLinkFeedback);
+    document.getElementById('editPartModalBackdrop').style.display = 'flex';
+}
+
+function closeEditPartModal() {
+    document.getElementById('editPartModalBackdrop').style.display = 'none';
+}
+
+window.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeEditPartModal();
+    }
+});
+</script>

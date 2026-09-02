@@ -51,6 +51,9 @@ def test_build_application_registers_handlers():
     assert "kids" in registered_commands
     assert "recommendations" in registered_commands
     assert "recs" in registered_commands
+    assert "participants" in registered_commands
+    assert "stands" in registered_commands
+    assert "vendors" in registered_commands
 
     assert len(callback_handlers) >= 1
     assert len(message_handlers) >= 1
