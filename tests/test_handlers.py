@@ -7,10 +7,12 @@ from telegram import Update
 from telegram.constants import ParseMode
 
 from bot.content import (
+    BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
+    CHILDREN_ACTIVITY_MESSAGE,
     HELP_MESSAGE,
     MAP_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
@@ -20,6 +22,7 @@ from bot.content import (
 )
 from bot.handlers import (
     button_callback_handler,
+    children_activity_handler,
     help_handler,
     map_handler,
     recommendations_handler,
@@ -28,6 +31,7 @@ from bot.handlers import (
     timetable_handler,
 )
 from bot.keyboards import (
+    CB_CHILDREN_ACTIVITY,
     CB_HELP,
     CB_MAP,
     CB_RECOMMENDATIONS,
@@ -147,6 +151,19 @@ async def test_timetable_handler():
 
 
 @pytest.mark.asyncio
+async def test_children_activity_handler():
+    update = create_mock_update_message("/children")
+    context = MagicMock()
+
+    await children_activity_handler(update, context)
+
+    update.effective_message.reply_text.assert_awaited_once()
+    kwargs = update.effective_message.reply_text.call_args.kwargs
+    assert kwargs["text"] == CHILDREN_ACTIVITY_MESSAGE
+    assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+
+
+@pytest.mark.asyncio
 async def test_recommendations_handler():
     update = create_mock_update_message("/recommendations")
     context = MagicMock()
@@ -244,6 +261,36 @@ async def test_button_callback_handler_timetable_flow():
 
 
 @pytest.mark.asyncio
+async def test_button_callback_handler_children_activity_flow():
+    # 1. Click children activity action -> returns dates
+    update_dates = create_mock_update_callback(CB_CHILDREN_ACTIVITY)
+    context = MagicMock()
+    await button_callback_handler(update_dates, context)
+    update_dates.callback_query.answer.assert_awaited_once()
+    update_dates.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_dates = update_dates.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs_dates["text"] == CHILDREN_ACTIVITY_MESSAGE
+    assert kwargs_dates["reply_markup"] is not None
+
+    # 2. Click a date -> returns locations for that day
+    update_locs = create_mock_update_callback("ca_date:13092026")
+    await button_callback_handler(update_locs, context)
+    update_locs.callback_query.answer.assert_awaited_once()
+    update_locs.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_locs = update_locs.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs_locs["reply_markup"] is not None
+
+    # 3. Click a location -> returns events for that location
+    update_events = create_mock_update_callback("ca_loc:13092026:Сцена у Рояля")
+    await button_callback_handler(update_events, context)
+    update_events.callback_query.answer.assert_awaited_once()
+    update_events.callback_query.edit_message_text.assert_awaited_once()
+    kwargs_events = update_events.callback_query.edit_message_text.call_args.kwargs
+    assert "Детская программа" in kwargs_events["text"]
+    assert kwargs_events["reply_markup"] is not None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "button_text",
     [
@@ -273,6 +320,9 @@ async def test_text_message_handler_map_inputs(button_text):
         ("schedule", TIMETABLE_MESSAGE),
         ("расписание", TIMETABLE_MESSAGE),
         ("программа", TIMETABLE_MESSAGE),
+        (BTN_CHILDREN_ACTIVITY, CHILDREN_ACTIVITY_MESSAGE),
+        ("детская программа", CHILDREN_ACTIVITY_MESSAGE),
+        ("дети", CHILDREN_ACTIVITY_MESSAGE),
         (BTN_RECOMMENDATIONS, RECOMMENDATIONS_MESSAGE),
         ("recs", RECOMMENDATIONS_MESSAGE),
         ("рекомендации", RECOMMENDATIONS_MESSAGE),

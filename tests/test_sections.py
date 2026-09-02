@@ -7,10 +7,12 @@ import pytest
 from telegram.constants import ParseMode
 
 from bot.content import (
+    BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
+    CHILDREN_ACTIVITY_MESSAGE,
     HELP_MESSAGE,
     MAP_MESSAGE,
     MAP_UNAVAILABLE_MESSAGE,
@@ -19,6 +21,7 @@ from bot.content import (
     TIMETABLE_MESSAGE,
 )
 from bot.keyboards import (
+    CB_CHILDREN_ACTIVITY,
     CB_HELP,
     CB_MAP,
     CB_RECOMMENDATIONS,
@@ -26,6 +29,7 @@ from bot.keyboards import (
 )
 from bot.sections import (
     BaseSection,
+    ChildrenActivity,
     Help,
     Map,
     Recommendations,
@@ -35,6 +39,7 @@ from bot.sections import (
     default_registry,
 )
 from bot.sections.base import BaseSection as DirectBaseSection
+from bot.sections.children_activity import ChildrenActivity as DirectChildrenActivity
 from bot.sections.help import Help as DirectHelp
 from bot.sections.map import Map as DirectMap
 from bot.sections.recommendations import Recommendations as DirectRecommendations
@@ -354,6 +359,26 @@ async def test_timetable_section(mock_message):
 
 
 @pytest.mark.asyncio
+async def test_children_activity_section(mock_message):
+    ca = ChildrenActivity()
+    assert ca.name == "children"
+    assert ca.matches_command("children")
+    assert ca.matches_command("children_activity")
+    assert ca.matches_command("kids")
+    assert ca.matches_callback(CB_CHILDREN_ACTIVITY)
+    assert ca.matches_text(BTN_CHILDREN_ACTIVITY)
+    assert ca.matches_text("детская программа")
+    assert ca.matches_text("дети")
+    assert ca.get_text_content() == CHILDREN_ACTIVITY_MESSAGE
+
+    await ca.send_response(mock_message)
+    mock_message.reply_text.assert_awaited_once()
+    kwargs = mock_message.reply_text.call_args.kwargs
+    assert kwargs["text"] == CHILDREN_ACTIVITY_MESSAGE
+    assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+
+
+@pytest.mark.asyncio
 async def test_recommendations_section(mock_message):
     recs = Recommendations()
     assert recs.name == "recommendations"
@@ -379,6 +404,8 @@ def test_section_registry_routing():
     assert isinstance(registry.find_by_command("/start"), Start)
     assert isinstance(registry.find_by_command("map"), Map)
     assert isinstance(registry.find_by_command("timetables"), Timetable)
+    assert isinstance(registry.find_by_command("children"), ChildrenActivity)
+    assert isinstance(registry.find_by_command("kids"), ChildrenActivity)
     assert isinstance(registry.find_by_command("recs"), Recommendations)
     assert isinstance(registry.find_by_command("help"), Help)
     assert registry.find_by_command("nonexistent") is None
@@ -386,6 +413,7 @@ def test_section_registry_routing():
     # Callbacks
     assert isinstance(registry.find_by_callback(CB_MAP), Map)
     assert isinstance(registry.find_by_callback(CB_TIMETABLE), Timetable)
+    assert isinstance(registry.find_by_callback(CB_CHILDREN_ACTIVITY), ChildrenActivity)
     assert isinstance(registry.find_by_callback(CB_RECOMMENDATIONS), Recommendations)
     assert isinstance(registry.find_by_callback(CB_HELP), Help)
     assert registry.find_by_callback("unknown_cb") is None
@@ -395,6 +423,9 @@ def test_section_registry_routing():
     assert isinstance(registry.find_by_text("карта"), Map)
     assert isinstance(registry.find_by_text(BTN_TIMETABLE), Timetable)
     assert isinstance(registry.find_by_text("программа"), Timetable)
+    assert isinstance(registry.find_by_text(BTN_CHILDREN_ACTIVITY), ChildrenActivity)
+    assert isinstance(registry.find_by_text("детская программа"), ChildrenActivity)
+    assert isinstance(registry.find_by_text("дети"), ChildrenActivity)
     assert isinstance(registry.find_by_text(BTN_RECOMMENDATIONS), Recommendations)
     assert isinstance(registry.find_by_text("рекомендации"), Recommendations)
     assert isinstance(registry.find_by_text(BTN_HELP), Help)
@@ -408,5 +439,6 @@ def test_one_class_per_module_imports():
     assert Help is DirectHelp
     assert Map is DirectMap
     assert Timetable is DirectTimetable
+    assert ChildrenActivity is DirectChildrenActivity
     assert Recommendations is DirectRecommendations
     assert SectionRegistry is DirectSectionRegistry

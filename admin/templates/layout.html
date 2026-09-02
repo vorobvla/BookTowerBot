@@ -1012,6 +1012,7 @@
         if (e.key === 'Escape') {
             closeEmojiPicker();
             closeAndroidTimePicker();
+            if (typeof closeEditEventModal === 'function') closeEditEventModal();
         }
     });
 
@@ -1022,18 +1023,29 @@
     });
 
     function hasUnsubmittedFormInputs() {
-        var inputs = document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select');
+        var inputs = document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]), textarea, select');
         for (var i = 0; i < inputs.length; i++) {
             var el = inputs[i];
             if (el.id === 'emojiSearchInput') continue;
             if (el.type === 'checkbox' || el.type === 'radio') {
                 if (el.defaultChecked !== el.checked) return true;
             } else if (el.tagName === 'SELECT') {
-                for (var j = 0; j < el.options.length; j++) {
-                    if (el.options[j].defaultSelected !== el.options[j].selected) return true;
+                if (el.multiple) {
+                    for (var j = 0; j < el.options.length; j++) {
+                        if (el.options[j].defaultSelected !== el.options[j].selected) return true;
+                    }
+                } else {
+                    var defaultIdx = 0;
+                    for (var j = 0; j < el.options.length; j++) {
+                        if (el.options[j].defaultSelected) {
+                            defaultIdx = j;
+                            break;
+                        }
+                    }
+                    if (el.selectedIndex !== defaultIdx) return true;
                 }
-            } else if (el.defaultValue !== undefined && el.value !== el.defaultValue) {
-                if (el.value.trim() !== '') return true;
+            } else if (el.defaultValue !== undefined) {
+                if (el.value !== el.defaultValue) return true;
             }
         }
         return false;

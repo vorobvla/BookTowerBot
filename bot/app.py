@@ -12,6 +12,7 @@ from telegram.ext import (
 
 from bot.handlers import (
     button_callback_handler,
+    children_activity_handler,
     help_handler,
     map_handler,
     recommendations_handler,
@@ -30,6 +31,7 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("help", help_handler))
     app.add_handler(CommandHandler("map", map_handler))
     app.add_handler(CommandHandler("timetables", timetable_handler))
+    app.add_handler(CommandHandler(["children", "children_activity", "kids"], children_activity_handler))
     app.add_handler(CommandHandler(["recommendations", "recs"], recommendations_handler))
 
     # Callback query handler for inline keyboard buttons

@@ -279,22 +279,48 @@ class AdminTemplateRenderer:
         event_row_tpl = cls.load_template("day_event_row.html")
         empty_events_tpl = cls.load_template("day_empty_events_row.html")
 
-        event_rows = []
+        all_event_rows = []
+        general_event_rows = []
+        children_event_rows = []
+
         for idx, event in enumerate(timetable.events):
-            participants_str = ", ".join(event.participants) if event.participants else "—"
+            participants_str = ", ".join(event.participants) if event.participants else ""
+            display_participants = participants_str if participants_str else "—"
+            display_organizer = event.organizer if event.organizer else "—"
+            display_description = event.description if event.description else "—"
+
+            checked_attr = "checked" if event.is_children_activity else ""
+            is_children_num = "1" if event.is_children_activity else "0"
+
             row_html = (
                 event_row_tpl.replace("{{ time }}", html.escape(event.time))
                 .replace("{{ title }}", html.escape(event.title))
                 .replace("{{ location }}", html.escape(event.location))
-                .replace("{{ organizer }}", html.escape(event.organizer or "—"))
-                .replace("{{ participants }}", html.escape(participants_str))
-                .replace("{{ description }}", html.escape(event.description or "—"))
+                .replace("{{ organizer }}", html.escape(display_organizer))
+                .replace("{{ participants }}", html.escape(display_participants))
+                .replace("{{ description }}", html.escape(display_description))
                 .replace("{{ date_key }}", html.escape(date_key))
                 .replace("{{ event_index }}", str(idx))
+                .replace("{{ checked_attr }}", checked_attr)
+                .replace("{{ is_children_activity_num }}", is_children_num)
+                .replace("{{ title_attr }}", html.escape(event.title, quote=True))
+                .replace("{{ location_attr }}", html.escape(event.location, quote=True))
+                .replace("{{ organizer_attr }}", html.escape(event.organizer or "", quote=True))
+                .replace("{{ participants_attr }}", html.escape(participants_str, quote=True))
+                .replace("{{ description_attr }}", html.escape(event.description or "", quote=True))
             )
-            event_rows.append(row_html)
+            all_event_rows.append(row_html)
+            if event.is_children_activity:
+                children_event_rows.append(row_html)
+            else:
+                general_event_rows.append(row_html)
 
-        event_rows_content = "".join(event_rows) if event_rows else empty_events_tpl
+        empty_general = '<tr><td colspan="8" style="text-align:center; color:#94a3b8;">Нет запланированных событий основной программы</td></tr>'
+        empty_children = '<tr><td colspan="8" style="text-align:center; color:#94a3b8;">Нет запланированных событий детской программы</td></tr>'
+
+        event_rows_content = "".join(all_event_rows) if all_event_rows else empty_events_tpl
+        general_rows_content = "".join(general_event_rows) if general_event_rows else empty_general
+        children_rows_content = "".join(children_event_rows) if children_event_rows else empty_children
 
         day_tpl = cls.load_template("day_timetable.html")
         content = (
@@ -302,7 +328,11 @@ class AdminTemplateRenderer:
             .replace("{{ display_date }}", html.escape(display_date))
             .replace("{{ date_key }}", html.escape(date_key))
             .replace("{{ events_count }}", str(len(timetable.events)))
+            .replace("{{ general_events_count }}", str(len(general_event_rows)))
+            .replace("{{ children_events_count }}", str(len(children_event_rows)))
             .replace("{{ event_rows }}", event_rows_content)
+            .replace("{{ general_event_rows }}", general_rows_content)
+            .replace("{{ children_event_rows }}", children_rows_content)
             .replace("{{ location_options }}", loc_options_html)
         )
 

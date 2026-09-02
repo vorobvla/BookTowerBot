@@ -46,6 +46,9 @@ def test_build_application_registers_handlers():
     assert "help" in registered_commands
     assert "map" in registered_commands
     assert "timetables" in registered_commands
+    assert "children" in registered_commands
+    assert "children_activity" in registered_commands
+    assert "kids" in registered_commands
     assert "recommendations" in registered_commands
     assert "recs" in registered_commands
 

@@ -5,7 +5,23 @@
     <td>{{ organizer }}</td>
     <td>{{ participants }}</td>
     <td><small>{{ description }}</small></td>
-    <td>
+    <td style="text-align: center;">
+        <form method="POST" action="/timetables/{{ date_key }}/events/toggle_children" style="margin: 0; display: inline;">
+            <input type="hidden" name="event_index" value="{{ event_index }}">
+            <input type="checkbox" name="is_children_activity" value="1" {{ checked_attr }} onchange="isFormSubmitting = true; this.form.submit();" style="width: 18px; height: 18px; cursor: pointer;" title="Детская программа">
+        </form>
+    </td>
+    <td style="white-space: nowrap;">
+        <button type="button" class="btn btn-secondary btn-sm"
+            data-index="{{ event_index }}"
+            data-time="{{ time }}"
+            data-title="{{ title_attr }}"
+            data-location="{{ location_attr }}"
+            data-organizer="{{ organizer_attr }}"
+            data-participants="{{ participants_attr }}"
+            data-description="{{ description_attr }}"
+            data-children="{{ is_children_activity_num }}"
+            onclick="openEditEventModal(this)">✏️ Редактировать</button>
         <form method="POST" action="/timetables/{{ date_key }}/events/delete" style="display:inline;" onsubmit="return confirm('Удалить событие?');">
             <input type="hidden" name="event_index" value="{{ event_index }}">
             <button type="submit" class="btn btn-danger btn-sm">Удалить</button>

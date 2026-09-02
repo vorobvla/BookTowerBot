@@ -4,12 +4,16 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 
-from bot.content import TIMETABLE_MESSAGE
-from bot.keyboards import CB_TIMETABLE
+from bot.content import CHILDREN_ACTIVITY_MESSAGE, TIMETABLE_MESSAGE
+from bot.keyboards import CB_CHILDREN_ACTIVITY, CB_TIMETABLE
+from bot.sections.children_activity import ChildrenActivity
 from bot.sections.timetable import Timetable
 from bot.timetable.day import DayTimetable
 from bot.timetable.event import Event
 from bot.timetable.keyboards import (
+    CB_CA_DATES,
+    CB_CA_DATE_PREFIX,
+    CB_CA_LOC_PREFIX,
     CB_TT_DATES,
     CB_TT_DATE_PREFIX,
     CB_TT_LOC_PREFIX,
@@ -233,3 +237,116 @@ def test_timetable_service_reload_on_each_request(tmp_path):
 
     updated_dates = service.get_available_dates()
     assert updated_dates == ["01012027", "02012027"]
+
+
+def test_children_activity_event_and_day_filtering():
+    day_dict = {
+        "date": "14092026",
+        "events": [
+            {
+                "time": "10:00",
+                "title": "Взрослая лекция",
+                "location": "Зал 1",
+                "is_children_activity": False,
+            },
+            {
+                "time": "11:30",
+                "title": "Детский мастер-класс",
+                "location": "Детский уголок",
+                "is_children_activity": True,
+            },
+            {
+                "time": "13:00",
+                "title": "Сказки для малышей",
+                "location": "Детский уголок",
+                "is_children_activity": "true",
+            },
+        ],
+    }
+    day = DayTimetable.from_dict(day_dict)
+    assert len(day.events) == 3
+    assert day.events[0].is_children_activity is False
+    assert day.events[1].is_children_activity is True
+    assert day.events[2].is_children_activity is True
+
+    # Check to_dict preservation
+    d1 = day.events[1].to_dict()
+    assert d1["is_children_activity"] is True
+
+    # General timetable locations & events: returns ALL events
+    all_locs = day.get_locations(children_only=False)
+    assert all_locs == ["Зал 1", "Детский уголок"]
+    all_kids_loc_events = day.get_events_for_location("Детский уголок", children_only=False)
+    assert len(all_kids_loc_events) == 2
+
+    # Children-only filtering: returns only locations and events with is_children_activity=True
+    ca_locs = day.get_locations(children_only=True)
+    assert ca_locs == ["Детский уголок"]
+    ca_events = day.get_events_for_location("Детский уголок", children_only=True)
+    assert len(ca_events) == 2
+    assert day.get_events_for_location("Зал 1", children_only=True) == []
+
+
+@pytest.mark.asyncio
+async def test_children_activity_section_interactions():
+    section = ChildrenActivity()
+    assert section.matches_callback(CB_CHILDREN_ACTIVITY)
+    assert section.matches_callback(CB_CA_DATES)
+    assert section.matches_callback("ca_date:13092026")
+    assert section.matches_callback("ca_loc:13092026:Сцена у Рояля")
+    assert not section.matches_callback(CB_TIMETABLE)
+
+    # send_response sends date buttons
+    mock_msg = AsyncMock()
+    await section.send_response(mock_msg)
+    mock_msg.reply_text.assert_awaited_once()
+    kwargs = mock_msg.reply_text.call_args.kwargs
+    assert kwargs["text"] == CHILDREN_ACTIVITY_MESSAGE
+    assert kwargs["reply_markup"] is not None
+
+    # handle_callback_query: dates view
+    query_dates = AsyncMock()
+    query_dates.data = CB_CHILDREN_ACTIVITY
+    await section.handle_callback_query(query_dates)
+    query_dates.edit_message_text.assert_awaited_once()
+
+    # handle_callback_query: locations view
+    query_locs = AsyncMock()
+    query_locs.data = "ca_date:13092026"
+    await section.handle_callback_query(query_locs)
+    query_locs.edit_message_text.assert_awaited_once()
+
+    # handle_callback_query: events view
+    query_events = AsyncMock()
+    query_events.data = "ca_loc:13092026:Сцена у Рояля"
+    await section.handle_callback_query(query_events)
+    query_events.edit_message_text.assert_awaited_once()
+    assert "Детская программа" in query_events.edit_message_text.call_args.kwargs["text"]
+
+
+def test_events_sorted_by_time_then_name():
+    """Verify events are sorted chronologically by time, then alphabetically by title."""
+    day_dict = {
+        "date": "10092026",
+        "events": [
+            {"time": "15:00", "title": "Обед с Пидиди"},
+            {"time": "10:00", "title": "Презентация книги Четверг"},
+            {"time": "09:30", "title": "Биография Майкла Джексона"},
+            {"time": "10:00", "title": "Анонс фестиваля"},
+            {"time": "20:00", "title": "Кино с Окси"},
+            {"time": "10:15", "title": "Мастер-класс"},
+        ],
+    }
+    day = DayTimetable.from_dict(day_dict)
+    titles = [e.title for e in day.events]
+    times = [e.time for e in day.events]
+
+    assert times == ["09:30", "10:00", "10:00", "10:15", "15:00", "20:00"]
+    assert titles == [
+        "Биография Майкла Джексона",
+        "Анонс фестиваля",
+        "Презентация книги Четверг",
+        "Мастер-класс",
+        "Обед с Пидиди",
+        "Кино с Окси",
+    ]

@@ -84,6 +84,24 @@ class AdminTimetableService:
             return (year, month, day)
         return (9999, 12, 31, date_str)
 
+    @staticmethod
+    def _sort_event_key(event: Any) -> tuple:
+        """Helper to sort events chronologically by start time, then by name."""
+        if isinstance(event, dict):
+            time_str = str(event.get("time", "")).strip()
+            title_str = str(event.get("title", "")).strip()
+        else:
+            time_str = str(getattr(event, "time", "")).strip()
+            title_str = str(getattr(event, "title", "")).strip()
+
+        start_time_part = time_str.split("-")[0].strip()
+        match = re.match(r"^(\d{1,2}):(\d{2})$", start_time_part)
+        if match:
+            time_val = (0, int(match.group(1)), int(match.group(2)))
+        else:
+            time_val = (1, time_str)
+        return (time_val, title_str.lower(), title_str)
+
     def get_all_locations(self) -> List[str]:
         """Collect and return all unique locations across all timetable files and staged changes."""
         locations_set = set()
@@ -102,6 +120,8 @@ class AdminTimetableService:
         clean_date = date.strip()
         if clean_date in self._staged_days:
             staged = self._staged_days[clean_date]
+            if staged is not None and "events" in staged and isinstance(staged["events"], list):
+                staged["events"].sort(key=self._sort_event_key)
             return copy.deepcopy(staged) if staged is not None else None
 
         file_path = os.path.join(self.directory_path, f"{clean_date}.json")
@@ -112,6 +132,8 @@ class AdminTimetableService:
                 data = json.load(f)
             if not isinstance(data, dict):
                 return None
+            if "events" in data and isinstance(data["events"], list):
+                data["events"].sort(key=self._sort_event_key)
             return data
         except Exception:
             return None
@@ -129,7 +151,10 @@ class AdminTimetableService:
     def save_day_dict(self, date: str, data: Dict[str, Any]) -> None:
         """Stage day dictionary in-memory without immediately writing to disk."""
         clean_date = date.strip()
-        self._staged_days[clean_date] = copy.deepcopy(data)
+        cloned = copy.deepcopy(data)
+        if "events" in cloned and isinstance(cloned["events"], list):
+            cloned["events"].sort(key=self._sort_event_key)
+        self._staged_days[clean_date] = cloned
         self._has_pending_changes = True
 
     def save_to_disk(self) -> None:
@@ -141,6 +166,8 @@ class AdminTimetableService:
                 if os.path.exists(file_path):
                     os.remove(file_path)
             else:
+                if "events" in staged_val and isinstance(staged_val["events"], list):
+                    staged_val["events"].sort(key=self._sort_event_key)
                 with open(file_path, "w", encoding="utf-8") as f:
                     json.dump(staged_val, f, ensure_ascii=False, indent=2)
                     f.write("\n")
@@ -191,6 +218,7 @@ class AdminTimetableService:
         description: str = "",
         participants: Any = None,
         organizer: str = "",
+        is_children_activity: Any = False,
     ) -> None:
         """Add an event to a date timetable, enforcing mandatory start time, title, and location."""
         event_dict = self._validate_and_build_event(
@@ -200,6 +228,7 @@ class AdminTimetableService:
             description=description,
             participants=participants,
             organizer=organizer,
+            is_children_activity=is_children_activity,
         )
 
         clean_date = date.strip()
@@ -220,6 +249,7 @@ class AdminTimetableService:
         description: str = "",
         participants: Any = None,
         organizer: str = "",
+        is_children_activity: Any = False,
     ) -> None:
         """Update an event by index for a given date."""
         event_dict = self._validate_and_build_event(
@@ -229,6 +259,7 @@ class AdminTimetableService:
             description=description,
             participants=participants,
             organizer=organizer,
+            is_children_activity=is_children_activity,
         )
 
         clean_date = date.strip()
@@ -257,6 +288,36 @@ class AdminTimetableService:
         events.pop(event_index)
         self.save_day_dict(clean_date, data)
 
+    def toggle_event_children_activity(self, date: str, event_index: int) -> bool:
+        """Toggle is_children_activity flag for an event by index."""
+        clean_date = date.strip()
+        data = self.get_day_dict(clean_date)
+        if data is None:
+            raise ValueError(f"Timetable for date '{clean_date}' not found")
+
+        events = data.get("events", [])
+        if not (0 <= event_index < len(events)):
+            raise IndexError("Event index out of range")
+
+        current = bool(events[event_index].get("is_children_activity", False))
+        events[event_index]["is_children_activity"] = not current
+        self.save_day_dict(clean_date, data)
+        return events[event_index]["is_children_activity"]
+
+    def set_event_children_activity(self, date: str, event_index: int, is_children: bool) -> None:
+        """Set is_children_activity flag for an event by index."""
+        clean_date = date.strip()
+        data = self.get_day_dict(clean_date)
+        if data is None:
+            raise ValueError(f"Timetable for date '{clean_date}' not found")
+
+        events = data.get("events", [])
+        if not (0 <= event_index < len(events)):
+            raise IndexError("Event index out of range")
+
+        events[event_index]["is_children_activity"] = bool(is_children)
+        self.save_day_dict(clean_date, data)
+
     def _validate_and_build_event(
         self,
         time: str,
@@ -265,6 +326,7 @@ class AdminTimetableService:
         description: str = "",
         participants: Any = None,
         organizer: str = "",
+        is_children_activity: Any = False,
     ) -> Dict[str, Any]:
         """Validate mandatory attributes (time, title, location) and construct event dictionary."""
         clean_time = self.validate_time(time)
@@ -280,6 +342,11 @@ class AdminTimetableService:
         clean_description = (description or "").strip()
         clean_organizer = (organizer or "").strip()
 
+        if isinstance(is_children_activity, str):
+            clean_children = is_children_activity.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            clean_children = bool(is_children_activity)
+
         return {
             "time": clean_time,
             "title": clean_title,
@@ -287,6 +354,7 @@ class AdminTimetableService:
             "participants": clean_participants,
             "organizer": clean_organizer,
             "location": clean_location,
+            "is_children_activity": clean_children,
         }
 
     @staticmethod

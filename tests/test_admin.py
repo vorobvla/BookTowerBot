@@ -746,18 +746,32 @@ def test_template_renderer_timetables_view():
         description="Интересная лекция",
         participants=["Спикер 1"],
         organizer="Издательство",
+        is_children_activity=False,
     )
-    day = DayTimetable(date="10092026", events=[event])
+    kids_event = Event(
+        time="11:30",
+        title="Детский кукольный спектакль",
+        location="Детский уголок",
+        description="Спектакль для малышей",
+        participants=["Кукловод"],
+        organizer="Театр сказок",
+        is_children_activity=True,
+    )
+    day = DayTimetable(date="10092026", events=[event, kids_event])
     html_day = AdminTemplateRenderer.render_day_timetable(
         date_key="10092026",
         timetable=day,
-        all_locations=["Зал 1", "Зал 2"],
+        all_locations=["Зал 1", "Зал 2", "Детский уголок"],
     )
     assert "Лекция" in html_day
     assert "Зал 1" in html_day
     assert "Спикер 1" in html_day
+    assert "Детский кукольный спектакль" in html_day
+    assert "Детская программа" in html_day
+    assert "Основная программа" in html_day
     assert 'value="Зал 2"' in html_day
     assert "locationSelect" in html_day
+    assert "is_children_activity" in html_day
 
 
 def test_date_and_time_validation():
@@ -806,6 +820,32 @@ def test_router_event_add_with_start_time(temp_admin_env):
     added_event = timetable.events[1]
     assert added_event.time == "11:00"
     assert added_event.title == "Лекция о книгах"
+    assert added_event.is_children_activity is False
+
+
+def test_router_event_add_with_children_activity_flag(temp_admin_env):
+    """Verify adding children activity event."""
+    config, _, _ = temp_admin_env
+    router = AdminRouter(config=config)
+    token = router.session_manager.create_session()
+    cookie = f"{config.session_cookie_name}={token}"
+    headers = {
+        "Cookie": cookie,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+
+    body = "time=12%3A00&title=Детская+викторина&location_select=Детский+шатер&is_children_activity=1".encode("utf-8")
+    req = AdminRequest(method="POST", path="/timetables/10092026/events/add", headers=headers, body=body)
+    resp = router.route(req)
+    assert resp.status_code == 302
+
+    timetable = router.timetable_service.get_day_timetable("10092026")
+    assert len(timetable.events) == 2
+    added_event = timetable.events[1]
+    assert added_event.time == "12:00"
+    assert added_event.title == "Детская викторина"
+    assert added_event.location == "Детский шатер"
+    assert added_event.is_children_activity is True
 
 
 def test_recs_category_emoji_selection_and_update(temp_admin_env):
@@ -1348,3 +1388,115 @@ def test_beforeunload_script_in_layout():
     assert "hasUnsubmittedFormInputs" in layout
     assert "isFormSubmitting" in layout
     assert "{{ unsaved_changes_banner }}" in layout
+    assert "selectedIndex" in layout
+    assert "defaultIdx" in layout
+
+
+def test_admin_timetable_sorting_and_toggle(temp_admin_env):
+    """Verify AdminTimetableService sorts events by time then name, and supports toggle_children."""
+    _, _, timetables_dir = temp_admin_env
+    service = AdminTimetableService(timetables_dir)
+
+    service.create_day("20092026")
+    service.add_event("20092026", time="15:00", title="Вечерняя лекция", location="Зал 1")
+    service.add_event("20092026", time="10:00", title="Презентация книги", location="Зал 1")
+    service.add_event("20092026", time="10:00", title="Автограф-сессия", location="Зал 2")
+    service.add_event("20092026", time="09:30", title="Открытие", location="Главная сцена")
+
+    day_dict = service.get_day_dict("20092026")
+    events = day_dict["events"]
+    assert [e["time"] for e in events] == ["09:30", "10:00", "10:00", "15:00"]
+    assert [e["title"] for e in events] == ["Открытие", "Автограф-сессия", "Презентация книги", "Вечерняя лекция"]
+
+    # Toggle children activity for index 1 ("Автограф-сессия")
+    assert events[1]["is_children_activity"] is False
+    res = service.toggle_event_children_activity("20092026", 1)
+    assert res is True
+    assert service.get_day_dict("20092026")["events"][1]["is_children_activity"] is True
+
+    # Toggle back
+    res2 = service.toggle_event_children_activity("20092026", 1)
+    assert res2 is False
+    assert service.get_day_dict("20092026")["events"][1]["is_children_activity"] is False
+
+
+def test_admin_day_timetable_rendering_and_edit_modal(temp_admin_env):
+    """Verify render_day_timetable includes editable checkbox, edit buttons and edit modal markup."""
+    _, _, timetables_dir = temp_admin_env
+    service = AdminTimetableService(timetables_dir)
+    service.create_day("21092026")
+    service.add_event(
+        "21092026",
+        time="11:00",
+        title="Детские сказки",
+        location="Детский уголок",
+        organizer="Изд. Сказка",
+        participants=["Сказкач 1"],
+        description="Чтение для детей",
+        is_children_activity=True,
+    )
+    service.add_event(
+        "21092026",
+        time="14:00",
+        title="Взрослая дискуссия",
+        location="Конференц-зал",
+        is_children_activity=False,
+    )
+
+    day = service.get_day_timetable("21092026")
+    html = AdminTemplateRenderer.render_day_timetable(
+        date_key="21092026",
+        timetable=day,
+        all_locations=["Детский уголок", "Конференц-зал"],
+    )
+
+    assert "/timetables/21092026/events/toggle_children" in html
+    assert "checked" in html
+    assert "✏️ Редактировать" in html
+    assert "openEditEventModal" in html
+    assert 'id="editEventModalBackdrop"' in html
+    assert "/timetables/21092026/events/update" in html
+    assert 'data-title="Детские сказки"' in html
+    assert 'data-location="Детский уголок"' in html
+    assert "Детская программа" in html
+
+
+def test_admin_router_toggle_and_edit_events(temp_admin_env):
+    """Verify router handles event toggle_children and event update routes."""
+    config, _, timetables_dir = temp_admin_env
+    router = AdminRouter(config=config)
+    token = router.session_manager.create_session()
+    cookie_hdr = f"{config.session_cookie_name}={token}"
+
+    # Create day and add event
+    router.timetable_service.create_day("22092026")
+    router.timetable_service.add_event("22092026", time="10:00", title="Утренний воркшоп", location="Зал А")
+
+    # 1. Toggle children activity via POST
+    req_toggle = AdminRequest(
+        method="POST",
+        path="/timetables/22092026/events/toggle_children",
+        headers={"Cookie": cookie_hdr, "Content-Type": "application/x-www-form-urlencoded"},
+        body=b"event_index=0",
+    )
+    resp_toggle = router.route(req_toggle)
+    assert resp_toggle.status_code == 302
+    assert resp_toggle.headers["Location"] == "/timetables/22092026"
+    assert router.timetable_service.get_day_dict("22092026")["events"][0]["is_children_activity"] is True
+
+    # 2. Update event via POST
+    req_update = AdminRequest(
+        method="POST",
+        path="/timetables/22092026/events/update",
+        headers={"Cookie": cookie_hdr, "Content-Type": "application/x-www-form-urlencoded"},
+        body=b"event_index=0&time=11%3A30&title=%D0%9E%D0%B1%D0%BD%D0%BE%D0%B2%D0%BB%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9+%D0%B2%D0%BE%D1%80%D0%BA%D1%88%D0%BE%D0%BF&location=%D0%9D%D0%BE%D0%B2%D1%8B%D0%B9+%D0%B7%D0%B0%D0%BB&is_children_activity=0",
+    )
+    resp_update = router.route(req_update)
+    assert resp_update.status_code == 302
+    assert resp_update.headers["Location"].startswith("/timetables/22092026?msg=")
+
+    updated_event = router.timetable_service.get_day_dict("22092026")["events"][0]
+    assert updated_event["time"] == "11:30"
+    assert updated_event["title"] == "Обновленный воркшоп"
+    assert updated_event["location"] == "Новый зал"
+    assert updated_event["is_children_activity"] is False

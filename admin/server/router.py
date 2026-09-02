@@ -139,6 +139,8 @@ class AdminRouter:
                     return self._handle_post_day_event_update(request, date_key)
                 if action == "delete" and request.method == "POST":
                     return self._handle_post_day_event_delete(request, date_key)
+                if action in ("toggle_children", "toggle_children_activity") and request.method == "POST":
+                    return self._handle_post_day_event_toggle_children(request, date_key)
 
         # JSON API Routes
         if path.startswith("/api/"):
@@ -426,6 +428,8 @@ class AdminRouter:
         organizer = request.form_data.get("organizer", "")
         participants = request.form_data.get("participants", "")
         description = request.form_data.get("description", "")
+        raw_children = request.form_data.get("is_children_activity", "0")
+        is_children_activity = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
 
         try:
             self.timetable_service.add_event(
@@ -436,6 +440,7 @@ class AdminRouter:
                 description=description,
                 participants=participants,
                 organizer=organizer,
+                is_children_activity=is_children_activity,
             )
             return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote(f"Мероприятие «{title}» добавлено"))
         except Exception as e:
@@ -462,6 +467,8 @@ class AdminRouter:
         organizer = request.form_data.get("organizer", "")
         participants = request.form_data.get("participants", "")
         description = request.form_data.get("description", "")
+        raw_children = request.form_data.get("is_children_activity", "0")
+        is_children_activity = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
 
         try:
             event_index = int(index_str)
@@ -474,6 +481,7 @@ class AdminRouter:
                 description=description,
                 participants=participants,
                 organizer=organizer,
+                is_children_activity=is_children_activity,
             )
             return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote("Мероприятие обновлено"))
         except Exception as e:
@@ -485,6 +493,20 @@ class AdminRouter:
             event_index = int(index_str)
             self.timetable_service.delete_event(date_key, event_index)
             return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote("Мероприятие удалено"))
+        except Exception as e:
+            return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
+
+    def _handle_post_day_event_toggle_children(self, request: AdminRequest, date_key: str) -> AdminResponse:
+        index_str = request.form_data.get("event_index", "0")
+        try:
+            event_index = int(index_str)
+            raw_children = request.form_data.get("is_children_activity")
+            if raw_children is not None:
+                is_children = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
+                self.timetable_service.set_event_children_activity(date_key, event_index, is_children)
+            else:
+                self.timetable_service.toggle_event_children_activity(date_key, event_index)
+            return AdminResponse.redirect(f"/timetables/{date_key}")
         except Exception as e:
             return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
 
@@ -641,6 +663,7 @@ class AdminRouter:
                     description=payload.get("description", ""),
                     participants=payload.get("participants", []),
                     organizer=payload.get("organizer", ""),
+                    is_children_activity=payload.get("is_children_activity", False),
                 )
                 return AdminResponse.json({"status": "ok"}, status_code=201)
 

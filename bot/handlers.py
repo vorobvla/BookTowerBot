@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 from bot.content import UNKNOWN_COMMAND_MESSAGE
 from bot.keyboards import get_main_reply_keyboard
 from bot.sections import (
+    ChildrenActivity,
     Help,
     Map,
     Recommendations,
@@ -23,6 +24,7 @@ start_section = Start()
 help_section = Help()
 map_section = Map()
 timetable_section = Timetable()
+children_activity_section = ChildrenActivity()
 recommendations_section = Recommendations()
 
 
@@ -44,6 +46,11 @@ async def map_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def timetable_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /timetables command."""
     await timetable_section.handle(update, context)
+
+
+async def children_activity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /children and /children_activity commands."""
+    await children_activity_section.handle(update, context)
 
 
 async def recommendations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -1,10 +1,12 @@
 """Tests for keyboard layout builders."""
 
 from bot.content import (
+    BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
+    CB_CHILDREN_ACTIVITY,
 )
 from bot.keyboards import (
     CB_HELP,
@@ -23,7 +25,8 @@ def test_get_main_reply_keyboard():
     buttons = [[btn.text for btn in row] for row in keyboard.keyboard]
     assert buttons == [
         [BTN_MAP, BTN_TIMETABLE],
-        [BTN_RECOMMENDATIONS, BTN_HELP],
+        [BTN_CHILDREN_ACTIVITY, BTN_RECOMMENDATIONS],
+        [BTN_HELP],
     ]
 
 
@@ -36,6 +39,7 @@ def test_get_main_inline_keyboard():
 
     expected = [
         [(BTN_MAP, CB_MAP), (BTN_TIMETABLE, CB_TIMETABLE)],
-        [(BTN_RECOMMENDATIONS, CB_RECOMMENDATIONS), (BTN_HELP, CB_HELP)],
+        [(BTN_CHILDREN_ACTIVITY, CB_CHILDREN_ACTIVITY), (BTN_RECOMMENDATIONS, CB_RECOMMENDATIONS)],
+        [(BTN_HELP, CB_HELP)],
     ]
     assert inline_buttons == expected

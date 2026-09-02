@@ -10,10 +10,15 @@ CB_TT_DATE_PREFIX = "tt_date:"
 CB_TT_LOC_PREFIX = "tt_loc:"
 CB_TT_DATES = "tt_dates"
 
+CB_CA_DATE_PREFIX = "ca_date:"
+CB_CA_LOC_PREFIX = "ca_loc:"
+CB_CA_DATES = "ca_dates"
+
 
 def get_dates_inline_keyboard(
     dates: List[str],
     date_formatter: Optional[Callable[[str], str]] = None,
+    date_prefix: str = CB_TT_DATE_PREFIX,
 ) -> InlineKeyboardMarkup:
     """Generate inline keyboard for available timetable dates."""
     keyboard: List[List[InlineKeyboardButton]] = []
@@ -23,7 +28,7 @@ def get_dates_inline_keyboard(
         label = date_formatter(date_str) if date_formatter else date_str
         btn = InlineKeyboardButton(
             text=f"🗓 {label}",
-            callback_data=f"{CB_TT_DATE_PREFIX}{date_str}",
+            callback_data=f"{date_prefix}{date_str}",
         )
         row.append(btn)
         if len(row) == 2:
@@ -39,6 +44,8 @@ def get_dates_inline_keyboard(
 def get_locations_inline_keyboard(
     date_str: str,
     locations: List[str],
+    loc_prefix: str = CB_TT_LOC_PREFIX,
+    back_cb: str = CB_TIMETABLE,
 ) -> InlineKeyboardMarkup:
     """Generate inline keyboard for available locations on a specific date."""
     keyboard: List[List[InlineKeyboardButton]] = []
@@ -46,7 +53,7 @@ def get_locations_inline_keyboard(
     for loc in locations:
         btn = InlineKeyboardButton(
             text=f"📍 {loc}",
-            callback_data=f"{CB_TT_LOC_PREFIX}{date_str}:{loc}",
+            callback_data=f"{loc_prefix}{date_str}:{loc}",
         )
         keyboard.append([btn])
 
@@ -54,26 +61,30 @@ def get_locations_inline_keyboard(
     keyboard.append([
         InlineKeyboardButton(
             text="« Назад к выбору даты",
-            callback_data=CB_TIMETABLE,
+            callback_data=back_cb,
         )
     ])
 
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_timetable_details_keyboard(date_str: str) -> InlineKeyboardMarkup:
+def get_timetable_details_keyboard(
+    date_str: str,
+    date_prefix: str = CB_TT_DATE_PREFIX,
+    back_cb: str = CB_TIMETABLE,
+) -> InlineKeyboardMarkup:
     """Generate navigation keyboard when viewing timetable events."""
     keyboard = [
         [
             InlineKeyboardButton(
                 text="« Другая площадка",
-                callback_data=f"{CB_TT_DATE_PREFIX}{date_str}",
+                callback_data=f"{date_prefix}{date_str}",
             )
         ],
         [
             InlineKeyboardButton(
                 text="🗓 Выбрать другую дату",
-                callback_data=CB_TIMETABLE,
+                callback_data=back_cb,
             )
         ],
     ]

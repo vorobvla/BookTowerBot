@@ -3,6 +3,7 @@
 from typing import List, Optional
 
 from bot.sections.base import BaseSection
+from bot.sections.children_activity import ChildrenActivity
 from bot.sections.help import Help
 from bot.sections.map import Map
 from bot.sections.recommendations import Recommendations
@@ -19,6 +20,7 @@ class SectionRegistry:
             Help(),
             Map(),
             Timetable(),
+            ChildrenActivity(),
             Recommendations(),
         ]
 

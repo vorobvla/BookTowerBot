@@ -24,7 +24,7 @@ class TimetableService:
                 continue
         return (1, date_str)
 
-    def get_available_dates(self) -> List[str]:
+    def get_available_dates(self, children_only: bool = False) -> List[str]:
         """Return list of all dates available in the timetables directory, sorted chronologically."""
         if not os.path.exists(self.timetables_dir):
             return []
@@ -33,8 +33,12 @@ class TimetableService:
         for filename in os.listdir(self.timetables_dir):
             if filename.endswith(".json"):
                 date_part = filename[:-5]
-                # If valid day can be loaded, include date
-                dates.append(date_part)
+                if children_only:
+                    day = self.get_day(date_part)
+                    if day and any(e.is_children_activity for e in day.events):
+                        dates.append(date_part)
+                else:
+                    dates.append(date_part)
 
         return sorted(dates, key=self._get_sort_key)
 
@@ -50,19 +54,19 @@ class TimetableService:
         except Exception:
             return None
 
-    def get_locations(self, date_str: str) -> List[str]:
+    def get_locations(self, date_str: str, children_only: bool = False) -> List[str]:
         """Return list of distinct locations for the given date."""
         day = self.get_day(date_str)
         if not day:
             return []
-        return day.get_locations()
+        return day.get_locations(children_only=children_only)
 
-    def get_events(self, date_str: str, location: str) -> List[Event]:
+    def get_events(self, date_str: str, location: str, children_only: bool = False) -> List[Event]:
         """Return list of events for the given date and location."""
         day = self.get_day(date_str)
         if not day:
             return []
-        return day.get_events_for_location(location)
+        return day.get_events_for_location(location, children_only=children_only)
 
     def format_date_label(self, date_str: str) -> str:
         """Format raw date (DDMMYYYY) as DD.MM.YYYY."""
@@ -73,13 +77,14 @@ class TimetableService:
             return f"{date_str[:2]}.{date_str[2:4]}.{date_str[4:]}"
         return date_str
 
-    def format_timetable(self, date_str: str, location: str) -> str:
+    def format_timetable(self, date_str: str, location: str, children_only: bool = False) -> str:
         """Format full schedule for the given date and location as informative Markdown."""
         date_label = self.format_date_label(date_str)
-        events = self.get_events(date_str, location)
+        events = self.get_events(date_str, location, children_only=children_only)
 
+        header_title = "🎈 *Детская программа на " if children_only else "📅 *Расписание на "
         lines = [
-            f"📅 *Расписание на {date_label}*",
+            f"{header_title}{date_label}*",
             f"📍 *Площадка:* {location}\n",
         ]
 
