@@ -459,6 +459,7 @@
     <aside class="sidebar">
         <a href="/timetables" class="brand">BookTowerBot Admin</a>
         <nav class="sidebar-nav">
+            <a href="/map" class="{{ map_active }}">🏢 Карта ярмарки</a>
             <a href="/timetables" class="{{ timetables_active }}">📅 Расписания</a>
             <a href="/recs" class="{{ recs_active }}">📚 Рекомендации</a>
         </nav>
@@ -467,18 +468,22 @@
         </div>
     </aside>
     <main class="main-wrapper">
+        {{ unsaved_changes_banner }}
         {{ content }}
         <div class="bottom-actions-bar" style="margin-top: 2.5rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 1rem; align-items: center; justify-content: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <form method="POST" action="/save-changes" style="margin: 0;" onsubmit="return confirm('Сохранить все изменения и обновить информацию бота?');">
+                <input type="hidden" name="return_to" value="{{ return_to_path }}">
                 <button type="submit" class="btn btn-danger" style="background-color: var(--danger); font-size: 0.95rem; font-weight: 600; padding: 0.65rem 1.25rem;">
                     Сохранить изменения и обновить бота
                 </button>
             </form>
             <form method="POST" action="/discard-changes" style="margin: 0;" onsubmit="return confirm('Отменить все несохраненные изменения?');">
+                <input type="hidden" name="return_to" value="{{ return_to_path }}">
                 <button type="submit" class="btn btn-secondary" style="background-color: #64748b; font-size: 0.95rem; font-weight: 600; padding: 0.65rem 1.25rem;">
                     Отменить изменения
                 </button>
             </form>
+            {{ unsaved_changes_bar_notice }}
         </div>
     </main>
 
@@ -1007,6 +1012,39 @@
         if (e.key === 'Escape') {
             closeEmojiPicker();
             closeAndroidTimePicker();
+        }
+    });
+
+    // Form submission flag to avoid unload prompt when deliberately submitting
+    var isFormSubmitting = false;
+    document.addEventListener('submit', function() {
+        isFormSubmitting = true;
+    });
+
+    function hasUnsubmittedFormInputs() {
+        var inputs = document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select');
+        for (var i = 0; i < inputs.length; i++) {
+            var el = inputs[i];
+            if (el.id === 'emojiSearchInput') continue;
+            if (el.type === 'checkbox' || el.type === 'radio') {
+                if (el.defaultChecked !== el.checked) return true;
+            } else if (el.tagName === 'SELECT') {
+                for (var j = 0; j < el.options.length; j++) {
+                    if (el.options[j].defaultSelected !== el.options[j].selected) return true;
+                }
+            } else if (el.defaultValue !== undefined && el.value !== el.defaultValue) {
+                if (el.value.trim() !== '') return true;
+            }
+        }
+        return false;
+    }
+
+    window.addEventListener('beforeunload', function(e) {
+        if (isFormSubmitting) return;
+        if (hasUnsubmittedFormInputs()) {
+            e.preventDefault();
+            e.returnValue = 'У вас есть несохраненные изменения в форме. Они не будут сохранены и не отобразятся в боте.';
+            return e.returnValue;
         }
     });
     </script>

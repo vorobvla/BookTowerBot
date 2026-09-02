@@ -1,13 +1,14 @@
 """Request router dispatching endpoints and enforcing auth middleware."""
 
 from typing import Optional
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from admin.auth.authenticator import AdminAuthenticator
 from admin.auth.session_manager import AdminSessionManager
 from admin.config import AdminConfig
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
+from admin.services.map_service import AdminMapService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
 from admin.views.template_renderer import AdminTemplateRenderer
@@ -23,12 +24,14 @@ class AdminRouter:
         session_manager: Optional[AdminSessionManager] = None,
         recs_service: Optional[AdminRecsService] = None,
         timetable_service: Optional[AdminTimetableService] = None,
+        map_service: Optional[AdminMapService] = None,
     ):
         self.config = config or AdminConfig.from_env()
         self.authenticator = authenticator or AdminAuthenticator(self.config)
         self.session_manager = session_manager or AdminSessionManager(self.config.session_timeout_seconds)
         self.recs_service = recs_service or AdminRecsService(self.config.recs_path)
         self.timetable_service = timetable_service or AdminTimetableService(self.config.timetables_path)
+        self.map_service = map_service or AdminMapService(self.config.map_dir)
 
     def route(self, request: AdminRequest) -> AdminResponse:
         """Route request to the appropriate handler."""
@@ -103,6 +106,22 @@ class AdminRouter:
             return self._handle_post_timetables_add(request)
         if path == "/timetables/delete" and request.method == "POST":
             return self._handle_post_timetables_delete(request)
+
+        # Map Web Routes
+        if path == "/map":
+            return self._handle_get_map(request)
+        if path == "/map/upload" and request.method == "POST":
+            return self._handle_post_map_upload(request)
+        if path == "/map/select" and request.method == "POST":
+            return self._handle_post_map_select(request)
+        if path == "/map/delete" and request.method == "POST":
+            return self._handle_post_map_delete(request)
+        if path.startswith("/map/file/"):
+            filename = path[len("/map/file/"):]
+            return self._handle_get_map_file(request, filename)
+        if path.startswith("/map/preview/"):
+            filename = path[len("/map/preview/"):]
+            return self._handle_get_map_file(request, filename)
 
         # Dynamic timetable day routes
         if path.startswith("/timetables/"):
@@ -189,34 +208,53 @@ class AdminRouter:
 
     # --- Staged Changes Handlers ---
 
+    def _resolve_redirect_target(self, request: AdminRequest, default: str = "/timetables") -> str:
+        """Determine safe redirect target after saving or discarding changes."""
+        # 1. Check form field return_to
+        return_to = request.form_data.get("return_to", "").strip()
+        if return_to and return_to.startswith("/") and not return_to.startswith("//"):
+            return return_to.split("?")[0]
+
+        # 2. Check Referer header (case-insensitive)
+        referer = request.headers.get("referer", "") or request.headers.get("Referer", "")
+        if referer:
+            try:
+                parsed = urlparse(referer)
+                clean_path = parsed.path.rstrip("/")
+                if clean_path and clean_path.startswith("/") and not clean_path.startswith("//"):
+                    return clean_path
+            except Exception:
+                pass
+
+        return default
+
     def _handle_post_save_changes(self, request: AdminRequest) -> AdminResponse:
+        redirect_target = self._resolve_redirect_target(request)
         try:
             self.recs_service.save_to_disk()
             self.timetable_service.save_to_disk()
-            referer = request.headers.get("Referer", "/timetables")
-            redirect_target = "/timetables"
-            if referer:
-                # keep relative path if same origin
-                if "/" in referer:
-                    path_part = "/" + referer.split("/", 3)[-1] if referer.startswith("http") else referer
-                    redirect_target = path_part.split("?")[0]
+            self.map_service.save_to_disk()
             return AdminResponse.redirect(redirect_target + "?msg=" + quote("Все изменения сохранены и информация бота обновлена!"))
         except Exception as e:
-            return AdminResponse.redirect("/timetables?error=" + quote(str(e)))
+            return AdminResponse.redirect(redirect_target + "?error=" + quote(str(e)))
 
     def _handle_post_discard_changes(self, request: AdminRequest) -> AdminResponse:
+        redirect_target = self._resolve_redirect_target(request)
         try:
             self.recs_service.discard_changes()
             self.timetable_service.discard_changes()
-            referer = request.headers.get("Referer", "/timetables")
-            redirect_target = "/timetables"
-            if referer:
-                if "/" in referer:
-                    path_part = "/" + referer.split("/", 3)[-1] if referer.startswith("http") else referer
-                    redirect_target = path_part.split("?")[0]
+            self.map_service.discard_changes()
             return AdminResponse.redirect(redirect_target + "?msg=" + quote("Все несохраненные изменения отменены"))
         except Exception as e:
-            return AdminResponse.redirect("/timetables?error=" + quote(str(e)))
+            return AdminResponse.redirect(redirect_target + "?error=" + quote(str(e)))
+
+    def has_unsaved_changes(self) -> bool:
+        """Check whether any admin service has uncommitted staged changes."""
+        return bool(
+            self.recs_service.has_pending_changes()
+            or self.timetable_service.has_pending_changes()
+            or self.map_service.has_pending_changes()
+        )
 
     # --- Recommendations Web Handlers ---
 
@@ -224,7 +262,12 @@ class AdminRouter:
         categories = self.recs_service.get_categories()
         error = request.query_params.get("error")
         message = request.query_params.get("msg")
-        html = AdminTemplateRenderer.render_recs(categories, error=error, message=message)
+        html = AdminTemplateRenderer.render_recs(
+            categories,
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
         return AdminResponse.html(html)
 
     def _handle_post_recs_category_add(self, request: AdminRequest) -> AdminResponse:
@@ -321,7 +364,12 @@ class AdminRouter:
         dates = self.timetable_service.list_days()
         error = request.query_params.get("error")
         message = request.query_params.get("msg")
-        html = AdminTemplateRenderer.render_timetables_list(dates, error=error, message=message)
+        html = AdminTemplateRenderer.render_timetables_list(
+            dates,
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
         return AdminResponse.html(html)
 
     def _handle_post_timetables_add(self, request: AdminRequest) -> AdminResponse:
@@ -354,6 +402,7 @@ class AdminRouter:
             all_locations=all_locations,
             error=error,
             message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
         )
         return AdminResponse.html(html)
 
@@ -439,18 +488,123 @@ class AdminRouter:
         except Exception as e:
             return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
 
+    # --- Map Handlers ---
+
+    def _handle_get_map(self, request: AdminRequest) -> AdminResponse:
+        error = request.query_params.get("error")
+        message = request.query_params.get("msg")
+        maps = self.map_service.list_maps()
+        html = AdminTemplateRenderer.render_map(
+            map_versions=maps,
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
+        return AdminResponse.html(html)
+
+    def _handle_post_map_upload(self, request: AdminRequest) -> AdminResponse:
+        set_active = str(request.form_data.get("set_active", "1")).strip() in ("1", "true", "True", "on", "yes")
+        file_obj = request.files.get("map_file") or request.files.get("file")
+        if not file_obj:
+            return AdminResponse.redirect("/map?error=" + quote("Файл для загрузки не найден"))
+
+        filename = file_obj.get("filename", "")
+        content = file_obj.get("content", b"")
+        if not filename or not content:
+            return AdminResponse.redirect("/map?error=" + quote("Файл не может быть пустым"))
+
+        try:
+            saved_name = self.map_service.upload_map(
+                filename=filename,
+                content=content,
+                set_as_active=set_active,
+            )
+            msg = f"Карта «{saved_name}» успешно загружена" + (" и выбрана активной!" if set_active else "!")
+            return AdminResponse.redirect("/map?msg=" + quote(msg))
+        except Exception as e:
+            return AdminResponse.redirect("/map?error=" + quote(str(e)))
+
+    def _handle_post_map_select(self, request: AdminRequest) -> AdminResponse:
+        filename = request.form_data.get("filename", "").strip()
+        if not filename:
+            return AdminResponse.redirect("/map?error=" + quote("Имя файла карты не указано"))
+        try:
+            self.map_service.select_map(filename)
+            return AdminResponse.redirect("/map?msg=" + quote(f"Карта «{filename}» выбрана как активная"))
+        except Exception as e:
+            return AdminResponse.redirect("/map?error=" + quote(str(e)))
+
+    def _handle_post_map_delete(self, request: AdminRequest) -> AdminResponse:
+        filename = request.form_data.get("filename", "").strip()
+        if not filename:
+            return AdminResponse.redirect("/map?error=" + quote("Имя файла карты не указано"))
+        try:
+            self.map_service.delete_map(filename)
+            return AdminResponse.redirect("/map?msg=" + quote(f"Версия карты «{filename}» удалена"))
+        except Exception as e:
+            return AdminResponse.redirect("/map?error=" + quote(str(e)))
+
+    def _handle_get_map_file(self, request: AdminRequest, filename: str) -> AdminResponse:
+        res = self.map_service.get_map_file_content(filename)
+        if not res:
+            return AdminResponse.html("<h1>404 Map File Not Found</h1>", status_code=404)
+        content_bytes, mime_type = res
+        return AdminResponse.binary(content_bytes, content_type=mime_type)
+
     # --- API Dispatcher ---
 
     def _route_api(self, request: AdminRequest, path: str) -> AdminResponse:
         if path == "/api/save" and request.method == "POST":
             self.recs_service.save_to_disk()
             self.timetable_service.save_to_disk()
+            self.map_service.save_to_disk()
             return AdminResponse.json({"status": "ok"})
 
         if path == "/api/discard" and request.method == "POST":
             self.recs_service.discard_changes()
             self.timetable_service.discard_changes()
+            self.map_service.discard_changes()
             return AdminResponse.json({"status": "ok"})
+
+        if path == "/api/map":
+            if request.method == "GET":
+                return AdminResponse.json({
+                    "active_map": self.map_service.get_active_map(),
+                    "maps": self.map_service.list_maps(),
+                })
+            if request.method == "POST":
+                file_obj = request.files.get("map_file") or request.files.get("file")
+                if file_obj:
+                    set_active = str(request.form_data.get("set_active", "1")).strip() in ("1", "true", "True", "on", "yes")
+                    saved_name = self.map_service.upload_map(
+                        filename=file_obj.get("filename", ""),
+                        content=file_obj.get("content", b""),
+                        set_as_active=set_active,
+                    )
+                    return AdminResponse.json({"status": "ok", "filename": saved_name, "is_active": set_active})
+                data = request.json() or {}
+                if "content_base64" in data and "filename" in data:
+                    import base64
+                    content = base64.b64decode(data["content_base64"])
+                    set_active = bool(data.get("set_active", True))
+                    saved_name = self.map_service.upload_map(
+                        filename=data["filename"],
+                        content=content,
+                        set_as_active=set_active,
+                    )
+                    return AdminResponse.json({"status": "ok", "filename": saved_name, "is_active": set_active})
+                return AdminResponse.json({"error": "No file provided"}, status_code=400)
+
+        if path == "/api/map/select" and request.method == "POST":
+            data = request.json() or request.form_data or {}
+            filename = data.get("filename", "")
+            if not filename:
+                return AdminResponse.json({"error": "filename required"}, status_code=400)
+            try:
+                self.map_service.select_map(filename)
+                return AdminResponse.json({"status": "ok", "active_map": filename})
+            except Exception as e:
+                return AdminResponse.json({"error": str(e)}, status_code=400)
 
         if path == "/api/recs":
             if request.method == "GET":

@@ -16,6 +16,7 @@ from admin.config import AdminConfig
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
 from admin.server.router import AdminRouter
+from admin.services.map_service import AdminMapService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
 from admin.views.template_renderer import AdminTemplateRenderer, TEMPLATES_DIR
@@ -27,7 +28,7 @@ from bot.timetable.event import Event
 
 @pytest.fixture
 def temp_admin_env():
-    """Create a temporary directory with recs.json and timetables for testing."""
+    """Create a temporary directory with recs.json, timetables, and map for testing."""
     temp_dir = tempfile.mkdtemp()
     recs_dir = os.path.join(temp_dir, "recs")
     os.makedirs(recs_dir, exist_ok=True)
@@ -70,6 +71,12 @@ def temp_admin_env():
     with open(day_file, "w", encoding="utf-8") as f:
         json.dump(initial_day, f)
 
+    map_dir = os.path.join(temp_dir, "map")
+    os.makedirs(map_dir, exist_ok=True)
+    map_file = os.path.join(map_dir, "map.png")
+    with open(map_file, "wb") as f:
+        f.write(b"PNG_INITIAL_MAP_CONTENT")
+
     auth_db = os.path.join(temp_dir, "test_admin_users.db")
     config = AdminConfig(
         host="127.0.0.1",
@@ -78,6 +85,8 @@ def temp_admin_env():
         assets_path=temp_dir,
         recs_path=recs_file,
         timetables_path=timetables_dir,
+        map_dir=map_dir,
+        map_path=map_file,
     )
 
     # Initialize auth and create confirmed test admin user
@@ -892,6 +901,9 @@ def test_no_placeholders_or_english_duplicates_in_templates():
         "recs_category_card.html",
         "timetables_list.html",
         "day_timetable.html",
+        "map.html",
+        "map_version_row.html",
+        "map_empty.html",
     ]
     for tpl in templates_to_check:
         content = AdminTemplateRenderer.load_template(tpl)
@@ -909,6 +921,7 @@ def test_sidebar_layout_rendered():
     layout = AdminTemplateRenderer.load_template("layout.html")
     assert '<aside class="sidebar">' in layout
     assert '<main class="main-wrapper">' in layout
+    assert '<a href="/map"' in layout
 
 
 def test_emoji_picker_modal_in_layout():
@@ -966,6 +979,8 @@ def test_admin_config_from_env_defaults_and_overrides():
         assert cfg.session_cookie_name == "booktower_admin_session"
         assert cfg.session_timeout_seconds == 86400
         assert cfg.auth_db_path.endswith("assets/db/admin_users.db")
+        assert cfg.map_dir.endswith("assets/map")
+        assert cfg.map_path.endswith("assets/map/map.png")
 
     custom_env = {
         "ADMIN_HOST": "127.0.0.1",
@@ -976,6 +991,8 @@ def test_admin_config_from_env_defaults_and_overrides():
         "ASSETS_PATH": "custom_assets",
         "RECS_PATH": "custom_assets/recs.json",
         "TIMETABLES_PATH": "custom_assets/timetables",
+        "MAP_DIR": "custom_assets/map",
+        "MAP_PATH": "custom_assets/map/custom_map.png",
     }
     with patch.dict(os.environ, custom_env, clear=True):
         cfg = AdminConfig.from_env()
@@ -988,6 +1005,8 @@ def test_admin_config_from_env_defaults_and_overrides():
         assert cfg.assets_path.endswith("custom_assets")
         assert cfg.recs_path.endswith("custom_assets/recs.json")
         assert cfg.timetables_path.endswith("custom_assets/timetables")
+        assert cfg.map_dir.endswith("custom_assets/map")
+        assert cfg.map_path.endswith("custom_assets/map/custom_map.png")
 
 
 def test_authenticator_anchored_to_project_root_regardless_of_cwd(tmp_path):
@@ -1001,3 +1020,331 @@ def test_authenticator_anchored_to_project_root_regardless_of_cwd(tmp_path):
         assert not auth.db_path.startswith(str(tmp_path))
     finally:
         os.chdir(orig_cwd)
+
+
+# --- Map Service & Router Tests ---
+
+def test_map_service_upload_versioning_and_selection(tmp_path):
+    map_dir = str(tmp_path / "map")
+    service = AdminMapService(map_dir)
+
+    # Initial state
+    assert service.list_maps() == []
+    assert service.get_active_map() is None
+    assert service.get_active_map_path() is None
+
+    # 1. Upload first map version (active by default)
+    map1_name = service.upload_map("floor1.png", b"MAP_V1_PNG_DATA", set_as_active=True)
+    assert map1_name == "floor1.png"
+    assert service.get_active_map() == "floor1.png"
+    assert service.has_pending_changes() is True
+
+    # 2. Upload second map version without setting active
+    map2_name = service.upload_map("floor2.png", b"MAP_V2_PNG_DATA", set_as_active=False)
+    assert map2_name == "floor2.png"
+    assert service.get_active_map() == "floor1.png"
+
+    # List maps shows both versions, with active map first
+    maps = service.list_maps()
+    assert len(maps) == 2
+    assert maps[0]["filename"] == "floor1.png"
+    assert maps[0]["is_active"] is True
+    assert maps[1]["filename"] == "floor2.png"
+    assert maps[1]["is_active"] is False
+
+    # 3. Select second map as active
+    service.select_map("floor2.png")
+    assert service.get_active_map() == "floor2.png"
+
+    # 4. Save to disk
+    service.save_to_disk()
+    assert service.has_pending_changes() is False
+    with open(os.path.join(map_dir, "active_map.json"), "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    assert meta.get("active_map") == "floor2.png"
+    # map.png is NOT created as an extra file
+    assert not os.path.exists(os.path.join(map_dir, "map.png"))
+
+    # 5. Selecting non-existent map raises ValueError
+    with pytest.raises(ValueError, match="не найден"):
+        service.select_map("non_existent.png")
+
+    # 6. Deleting active map raises ValueError
+    with pytest.raises(ValueError, match="Нельзя удалить активную карту"):
+        service.delete_map("floor2.png")
+
+    # 7. Delete non-active map version
+    assert service.delete_map("floor1.png") is True
+    service.save_to_disk()
+    remaining = service.list_maps()
+    assert len(remaining) == 1  # only floor2.png
+    assert "floor1.png" not in [m["filename"] for m in remaining]
+
+
+def test_map_service_upload_validation(tmp_path):
+    map_dir = str(tmp_path / "map")
+    service = AdminMapService(map_dir)
+
+    # Empty content
+    with pytest.raises(ValueError, match="не может быть пустым"):
+        service.upload_map("test.png", b"")
+
+    # Invalid extension
+    with pytest.raises(ValueError, match="Неподдерживаемый формат"):
+        service.upload_map("test.exe", b"binary")
+
+
+def test_admin_request_multipart_parsing():
+    boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+    body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="set_active"\r\n\r\n'
+        "1\r\n"
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="map_file"; filename="venue_plan.png"\r\n'
+        "Content-Type: image/png\r\n\r\n"
+        "FAKE_IMAGE_BYTES_123\r\n"
+        f"--{boundary}--\r\n"
+    ).encode("utf-8")
+
+    req = AdminRequest(
+        method="POST",
+        path="/map/upload",
+        headers={
+            "content-type": f"multipart/form-data; boundary={boundary}",
+            "content-length": str(len(body)),
+        },
+        body=body,
+    )
+
+    assert req.form_data.get("set_active") == "1"
+    assert "map_file" in req.files
+    assert req.files["map_file"]["filename"] == "venue_plan.png"
+    assert req.files["map_file"]["content"] == b"FAKE_IMAGE_BYTES_123"
+    assert req.files["map_file"]["content_type"] == "image/png"
+
+
+def test_admin_map_routes(temp_admin_env):
+    config, _, _ = temp_admin_env
+    auth = AdminAuthenticator(config=config)
+    session_mgr = AdminSessionManager()
+    token = session_mgr.create_session()
+    cookie_hdr = f"{config.session_cookie_name}={token}"
+
+    map_service = AdminMapService(config.map_dir)
+    router = AdminRouter(config=config, authenticator=auth, session_manager=session_mgr, map_service=map_service)
+
+    # 1. GET /map page
+    req = AdminRequest("GET", "/map", headers={"cookie": cookie_hdr})
+    resp = router.route(req)
+    assert resp.status_code == 200
+    html = resp.body.decode("utf-8")
+    assert "Управление картой ярмарки" in html
+    assert "Загрузить новую карту" in html
+    assert "map.png" in html
+
+    # 2. POST /map/upload via multipart request
+    boundary = "TestBoundary123"
+    upload_body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="set_active"\r\n\r\n'
+        "1\r\n"
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="map_file"; filename="festival_map_2026.png"\r\n'
+        "Content-Type: image/png\r\n\r\n"
+        "TEST_IMAGE_PAYLOAD\r\n"
+        f"--{boundary}--\r\n"
+    ).encode("utf-8")
+
+    req = AdminRequest(
+        "POST",
+        "/map/upload",
+        headers={
+            "cookie": cookie_hdr,
+            "content-type": f"multipart/form-data; boundary={boundary}",
+        },
+        body=upload_body,
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/map?msg=")
+
+    assert map_service.get_active_map() == "festival_map_2026.png"
+
+    # 3. GET /map/file/festival_map_2026.png preview
+    req = AdminRequest("GET", "/map/file/festival_map_2026.png", headers={"cookie": cookie_hdr})
+    resp = router.route(req)
+    assert resp.status_code == 200
+    assert resp.headers["Content-Type"] == "image/png"
+    assert resp.body == b"TEST_IMAGE_PAYLOAD"
+
+    # 4. POST /map/select
+    req = AdminRequest(
+        "POST",
+        "/map/select",
+        headers={"cookie": cookie_hdr, "content-type": "application/x-www-form-urlencoded"},
+        body=b"filename=map.png",
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert map_service.get_active_map() == "map.png"
+
+    # 5. POST /map/delete
+    req = AdminRequest(
+        "POST",
+        "/map/delete",
+        headers={"cookie": cookie_hdr, "content-type": "application/x-www-form-urlencoded"},
+        body=b"filename=festival_map_2026.png",
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+
+    # 6. JSON API endpoints
+    # GET /api/map
+    req = AdminRequest("GET", "/api/map", headers={"cookie": cookie_hdr})
+    resp = router.route(req)
+    assert resp.status_code == 200
+    api_data = json.loads(resp.body.decode("utf-8"))
+    assert "active_map" in api_data
+    assert "maps" in api_data
+
+    # POST /api/map/select
+    req = AdminRequest(
+        "POST",
+        "/api/map/select",
+        headers={"cookie": cookie_hdr, "content-type": "application/json"},
+        body=json.dumps({"filename": "map.png"}).encode("utf-8"),
+    )
+    resp = router.route(req)
+    assert resp.status_code == 200
+    api_resp = json.loads(resp.body.decode("utf-8"))
+    assert api_resp["status"] == "ok"
+
+
+def test_unsaved_changes_notification_when_changes_staged(temp_admin_env):
+    """Verify that when changes are staged in admin, a warning banner informs the user that changes won't be shown in the bot until uploaded."""
+    config, _, _ = temp_admin_env
+    router = AdminRouter(config=config)
+    token = router.session_manager.create_session()
+    cookie_hdr = f"{config.session_cookie_name}={token}"
+    headers = {
+        "Cookie": cookie_hdr,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+
+    # Initially no unsaved changes
+    assert not router.has_unsaved_changes()
+    resp = router.route(AdminRequest("GET", "/timetables", headers={"Cookie": cookie_hdr}))
+    html = resp.body.decode("utf-8")
+    assert "Есть несохраненные изменения" not in html
+
+    # 1. Stage a recommendation change
+    body_cat = "category_name=Новинки&emoji=✨".encode("utf-8")
+    router.route(AdminRequest("POST", "/recs/category/add", headers=headers, body=body_cat))
+
+    assert router.has_unsaved_changes()
+
+    # Verify unsaved changes banner appears on all views
+    for path in ["/timetables", "/recs", "/map"]:
+        resp = router.route(AdminRequest("GET", path, headers={"Cookie": cookie_hdr}))
+        html = resp.body.decode("utf-8")
+        assert "Есть несохраненные изменения" in html
+        assert "не будут отображаться в боте" in html
+        assert "Сохранить и обновить бота" in html
+
+    # 2. Discard changes -> banner disappears
+    router.route(AdminRequest("POST", "/discard-changes", headers=headers))
+    assert not router.has_unsaved_changes()
+
+    resp = router.route(AdminRequest("GET", "/recs", headers={"Cookie": cookie_hdr}))
+    html = resp.body.decode("utf-8")
+    assert "Есть несохраненные изменения" not in html
+
+    # 3. Stage a timetable change
+    body_date = "date=16092026".encode("utf-8")
+    router.route(AdminRequest("POST", "/timetables/add", headers=headers, body=body_date))
+    assert router.has_unsaved_changes()
+
+    resp_day = router.route(AdminRequest("GET", "/timetables/16092026", headers={"Cookie": cookie_hdr}))
+    html_day = resp_day.body.decode("utf-8")
+    assert "Есть несохраненные изменения" in html_day
+    assert "не будут отображаться в боте" in html_day
+
+    # 4. Save changes -> banner disappears
+    router.route(AdminRequest("POST", "/save-changes", headers=headers))
+    assert not router.has_unsaved_changes()
+
+    resp_after = router.route(AdminRequest("GET", "/timetables", headers={"Cookie": cookie_hdr}))
+    html_after = resp_after.body.decode("utf-8")
+    assert "Есть несохраненные изменения" not in html_after
+
+
+def test_admin_save_changes_redirect_preserves_page(temp_admin_env):
+    config, _, _ = temp_admin_env
+    auth = AdminAuthenticator(config=config)
+    session_mgr = AdminSessionManager()
+    token = session_mgr.create_session()
+    cookie_hdr = f"{config.session_cookie_name}={token}"
+    router = AdminRouter(config=config, authenticator=auth, session_manager=session_mgr)
+
+    # 1. Save from /map using Referer header
+    req = AdminRequest(
+        "POST",
+        "/save-changes",
+        headers={"Cookie": cookie_hdr, "Referer": "http://localhost:8000/map"},
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/map?msg=")
+
+    # 2. Save from /map using lowercase referer header
+    req = AdminRequest(
+        "POST",
+        "/save",
+        headers={"Cookie": cookie_hdr, "referer": "http://localhost:8000/map"},
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/map?msg=")
+
+    # 3. Save from /map using return_to form field
+    req = AdminRequest(
+        "POST",
+        "/save-changes",
+        headers={"Cookie": cookie_hdr, "Content-Type": "application/x-www-form-urlencoded"},
+        body=b"return_to=%2Fmap",
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/map?msg=")
+
+    # 4. Save from day timetable using return_to
+    req = AdminRequest(
+        "POST",
+        "/save-changes",
+        headers={"Cookie": cookie_hdr, "Content-Type": "application/x-www-form-urlencoded"},
+        body=b"return_to=%2Ftimetables%2F11092026",
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/timetables/11092026?msg=")
+
+    # 5. Discard from /map using return_to
+    req = AdminRequest(
+        "POST",
+        "/discard-changes",
+        headers={"Cookie": cookie_hdr, "Content-Type": "application/x-www-form-urlencoded"},
+        body=b"return_to=%2Fmap",
+    )
+    resp = router.route(req)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/map?msg=")
+
+
+def test_beforeunload_script_in_layout():
+    """Verify beforeunload listener and form input tracking script exists in layout template."""
+    layout = AdminTemplateRenderer.load_template("layout.html")
+    assert "beforeunload" in layout
+    assert "hasUnsubmittedFormInputs" in layout
+    assert "isFormSubmitting" in layout
+    assert "{{ unsaved_changes_banner }}" in layout

@@ -24,7 +24,8 @@ ASSETS_PATH = _resolve_relative_path(
     )
 )
 
-MAP_PATH = _resolve_relative_path(os.getenv("MAP_PATH", os.path.join(ASSETS_PATH, "maps", "map.png")))
+MAP_DIR = _resolve_relative_path(os.getenv("MAP_DIR", os.path.join(ASSETS_PATH, "map")))
+MAP_PATH = _resolve_relative_path(os.getenv("MAP_PATH", os.path.join(MAP_DIR, "map.png")))
 TIMETABLES_PATH = _resolve_relative_path(os.getenv("TIMETABLES_PATH", os.path.join(ASSETS_PATH, "timetables")))
 RECS_PATH = _resolve_relative_path(os.getenv("RECS_PATH", os.path.join(ASSETS_PATH, "recs", "recs.json")))
 
@@ -52,6 +53,12 @@ HELP_MESSAGE = (
 
 MAP_MESSAGE = (
     ""
+)
+
+MAP_UNAVAILABLE_MESSAGE = (
+    "🗺 *Карта площадки*\n\n"
+    "К сожалению, карта сейчас недоступна по техническим причинам. "
+    "Приносим извинения за доставленные неудобства!"
 )
 
 TIMETABLE_MESSAGE = (

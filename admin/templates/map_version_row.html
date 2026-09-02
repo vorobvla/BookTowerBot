@@ -1,0 +1,20 @@
+<tr style="{{ row_style }}">
+    <td style="width: 100px;">
+        <a href="{{ preview_url }}" target="_blank" title="Открыть в полном размере">
+            <img src="{{ preview_url }}" alt="{{ filename }}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border);" loading="lazy">
+        </a>
+    </td>
+    <td>
+        <div style="font-weight: 600; font-size: 0.95rem;">{{ filename }}</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Размер: {{ formatted_size }} | Изменен: {{ modified_at }}</div>
+    </td>
+    <td style="width: 140px; text-align: center;">
+        {{ status_badge }}
+    </td>
+    <td style="width: 220px; text-align: right;">
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;">
+            <a href="{{ preview_url }}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration: none;">Просмотр</a>
+            {{ action_buttons }}
+        </div>
+    </td>
+</tr>

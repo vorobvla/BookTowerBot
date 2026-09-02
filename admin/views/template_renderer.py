@@ -21,15 +21,61 @@ class AdminTemplateRenderer:
             return f.read()
 
     @classmethod
-    def _render_layout(cls, title: str, content: str, active_tab: str = "") -> str:
-        """Render base layout with navbar, alerts, and container."""
+    def _render_layout(
+        cls,
+        title: str,
+        content: str,
+        active_tab: str = "",
+        has_unsaved_changes: bool = False,
+        return_to_path: Optional[str] = None,
+    ) -> str:
+        """Render base layout with navbar, alerts, container, and unsaved changes notice."""
         template = cls.load_template("layout.html")
         timetables_active = "active" if active_tab == "timetables" else ""
         recs_active = "active" if active_tab == "recs" else ""
+        map_active = "active" if active_tab == "map" else ""
+
+        if return_to_path is None:
+            if active_tab == "map":
+                return_to_path = "/map"
+            elif active_tab == "recs":
+                return_to_path = "/recs"
+            else:
+                return_to_path = "/timetables"
+
+        if has_unsaved_changes:
+            banner_html = f"""
+            <div class="alert" style="background-color: #fffbeb; border: 1px solid #fde68a; border-left: 5px solid #f59e0b; color: #92400e; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">⚠️</span>
+                    <div>
+                        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 2px;">Есть несохраненные изменения!</div>
+                        <div style="font-size: 0.875rem; color: #b45309;">Внесенные изменения не будут отображаться в боте, пока вы не сохраните их («Сохранить изменения и обновить бота»).</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                    <form method="POST" action="/save-changes" style="margin: 0;" onsubmit="return confirm('Сохранить все изменения и обновить информацию бота?');">
+                        <input type="hidden" name="return_to" value="{html.escape(return_to_path)}">
+                        <button type="submit" class="btn" style="background-color: #f59e0b; color: #ffffff; font-weight: 600; padding: 0.45rem 0.9rem; font-size: 0.85rem;">
+                            Сохранить и обновить бота
+                        </button>
+                    </form>
+                </div>
+            </div>
+            """
+            bar_notice_html = '<span style="color: #b45309; font-size: 0.85rem; font-weight: 500; margin-left: auto;">⚠️ Есть несохраненные данные: они не видны в боте до сохранения</span>'
+        else:
+            banner_html = ""
+            bar_notice_html = ""
+
         return (
             template.replace("{{ title }}", html.escape(title))
             .replace("{{ timetables_active }}", timetables_active)
             .replace("{{ recs_active }}", recs_active)
+            .replace("{{ map_active }}", map_active)
+            .replace("{{ return_to_path }}", html.escape(return_to_path))
+            .replace("{{ unsaved_changes_banner }}", banner_html)
+            .replace("{{ unsaved_changes_bar_notice }}", bar_notice_html)
             .replace("{{ content }}", content)
         )
 
@@ -75,6 +121,7 @@ class AdminTemplateRenderer:
         categories: List[RecommendationCategory],
         error: Optional[str] = None,
         message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
     ) -> str:
         """Render recommendations management page."""
         alert_tpl = cls.load_template("alert.html")
@@ -133,7 +180,12 @@ class AdminTemplateRenderer:
             .replace("{{ categories_html }}", categories_html)
         )
 
-        return cls._render_layout(title="Рекомендации", content=content, active_tab="recs")
+        return cls._render_layout(
+            title="Рекомендации",
+            content=content,
+            active_tab="recs",
+            has_unsaved_changes=has_unsaved_changes,
+        )
 
     @classmethod
     def render_timetables_list(
@@ -141,6 +193,7 @@ class AdminTemplateRenderer:
         dates: List[str],
         error: Optional[str] = None,
         message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
     ) -> str:
         """Render list of timetable dates."""
         alert_tpl = cls.load_template("alert.html")
@@ -180,7 +233,12 @@ class AdminTemplateRenderer:
             .replace("{{ date_rows }}", date_rows_content)
         )
 
-        return cls._render_layout(title="Расписания", content=content, active_tab="timetables")
+        return cls._render_layout(
+            title="Расписания",
+            content=content,
+            active_tab="timetables",
+            has_unsaved_changes=has_unsaved_changes,
+        )
 
     @classmethod
     def render_day_timetable(
@@ -190,6 +248,7 @@ class AdminTemplateRenderer:
         all_locations: List[str],
         error: Optional[str] = None,
         message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
     ) -> str:
         """Render single day timetable events management with location dropdown & create-new capability."""
         alert_tpl = cls.load_template("alert.html")
@@ -247,4 +306,115 @@ class AdminTemplateRenderer:
             .replace("{{ location_options }}", loc_options_html)
         )
 
-        return cls._render_layout(title=f"Расписание {display_date}", content=content, active_tab="timetables")
+        return cls._render_layout(
+            title=f"Расписание {display_date}",
+            content=content,
+            active_tab="timetables",
+            has_unsaved_changes=has_unsaved_changes,
+            return_to_path=f"/timetables/{date_key}",
+        )
+
+    @classmethod
+    def render_map(
+        cls,
+        map_versions: List[Dict[str, Any]],
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
+    ) -> str:
+        """Render venue map management page."""
+        alert_tpl = cls.load_template("alert.html")
+        alerts = []
+        if error:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error))
+            )
+        if message:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        alerts_html = "".join(alerts)
+
+        active_version = next((m for m in map_versions if m.get("is_active")), None)
+        if active_version:
+            active_filename = active_version["filename"]
+            active_preview_url = active_version["preview_url"]
+            active_size = active_version["formatted_size"]
+            active_date = active_version["modified_at"]
+            active_map_content = f"""
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <a href="{active_preview_url}" target="_blank">
+                    <img src="{active_preview_url}" alt="{html.escape(active_filename)}" style="max-width: 100%; max-height: 240px; border-radius: 6px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                </a>
+            </div>
+            <div style="font-size: 0.9rem; background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border);">
+                <div><strong>Файл:</strong> {html.escape(active_filename)}</div>
+                <div><strong>Размер:</strong> {html.escape(active_size)}</div>
+                <div><strong>Обновлен:</strong> {html.escape(active_date)}</div>
+            </div>
+            """
+        else:
+            active_map_content = """
+            <div style="padding: 2rem; text-align: center; color: var(--text-muted); background: #f8fafc; border-radius: 6px; border: 1px dashed var(--border);">
+                Активная карта еще не установлена. Загрузите файл карты справа.
+            </div>
+            """
+
+        row_tpl = cls.load_template("map_version_row.html")
+        empty_tpl = cls.load_template("map_empty.html")
+
+        if not map_versions:
+            map_rows = empty_tpl
+        else:
+            rows = []
+            for item in map_versions:
+                fname = item["filename"]
+                is_active = item["is_active"]
+                preview_url = item["preview_url"]
+                formatted_size = item["formatted_size"]
+                modified_at = item["modified_at"]
+
+                row_style = "background-color: #f0fdf4;" if is_active else ""
+                if is_active:
+                    status_badge = '<span style="background: #10b981; color: #ffffff; font-size: 0.8rem; font-weight: 600; padding: 3px 10px; border-radius: 9999px;">Активная</span>'
+                    action_buttons = ""
+                else:
+                    status_badge = '<span style="color: var(--text-muted); font-size: 0.85rem;">Архивная</span>'
+                    action_buttons = f"""
+                    <form method="POST" action="/map/select" style="margin: 0; display: inline;">
+                        <input type="hidden" name="filename" value="{html.escape(fname)}">
+                        <button type="submit" class="btn btn-sm" style="background-color: var(--primary);">Выбрать</button>
+                    </form>
+                    <form method="POST" action="/map/delete" style="margin: 0; display: inline;" onsubmit="return confirm('Удалить эту версию карты?');">
+                        <input type="hidden" name="filename" value="{html.escape(fname)}">
+                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                    </form>
+                    """
+
+                row_rendered = (
+                    row_tpl.replace("{{ row_style }}", row_style)
+                    .replace("{{ preview_url }}", preview_url)
+                    .replace("{{ filename }}", html.escape(fname))
+                    .replace("{{ formatted_size }}", html.escape(formatted_size))
+                    .replace("{{ modified_at }}", html.escape(modified_at))
+                    .replace("{{ status_badge }}", status_badge)
+                    .replace("{{ action_buttons }}", action_buttons)
+                )
+                rows.append(row_rendered)
+            map_rows = "".join(rows)
+
+        map_tpl = cls.load_template("map.html")
+        content = (
+            map_tpl.replace("{{ alerts_html }}", alerts_html)
+            .replace("{{ active_map_content }}", active_map_content)
+            .replace("{{ map_rows }}", map_rows)
+        )
+
+        return cls._render_layout(
+            title="Управление картой ярмарки",
+            content=content,
+            active_tab="map",
+            has_unsaved_changes=has_unsaved_changes,
+        )

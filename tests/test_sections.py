@@ -1,5 +1,6 @@
 """Unit tests for bot sections and SectionRegistry."""
 
+import json
 import os
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 import pytest
@@ -12,6 +13,7 @@ from bot.content import (
     BTN_TIMETABLE,
     HELP_MESSAGE,
     MAP_MESSAGE,
+    MAP_UNAVAILABLE_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     START_MESSAGE,
     TIMETABLE_MESSAGE,
@@ -97,10 +99,9 @@ async def test_map_section_photo_dispatch(mock_message):
     # Case 1: file does not exist on disk
     with patch("os.path.exists", return_value=False):
         await map_sec.send_response(mock_message)
-        mock_message.reply_photo.assert_awaited_once()
-        kwargs = mock_message.reply_photo.call_args.kwargs
-        assert kwargs["photo"] == "test_map.png"
-        assert kwargs["caption"] == MAP_MESSAGE
+        mock_message.reply_text.assert_awaited_once()
+        kwargs = mock_message.reply_text.call_args.kwargs
+        assert kwargs["text"] == MAP_UNAVAILABLE_MESSAGE
         assert kwargs["parse_mode"] == ParseMode.MARKDOWN
 
     # Case 2: file exists on disk
@@ -169,9 +170,9 @@ async def test_map_section_fallback_on_invalid_cached_file_id(mock_message):
 
 @pytest.mark.asyncio
 async def test_map_section_global_cache_sharing(mock_message):
-    Map._global_cached_file_id = None
-    map1 = Map()
-    map2 = Map()
+    Map.clear_cache()
+    map1 = Map(image_path="test_shared_map.png")
+    map2 = Map(image_path="test_shared_map.png")
     assert map1.cached_file_id is None
     assert map2.cached_file_id is None
 
@@ -195,6 +196,144 @@ async def test_map_section_global_cache_sharing(mock_message):
         assert not mocked_open2.called
         mock_message.reply_photo.assert_awaited_once()
         assert mock_message.reply_photo.call_args.kwargs["photo"] == "shared_plan_file_id_123"
+
+
+@pytest.mark.asyncio
+async def test_map_section_dynamic_active_map_resolution(tmp_path, mock_message):
+    map_dir = tmp_path / "map"
+    map_dir.mkdir(parents=True, exist_ok=True)
+    map1_file = map_dir / "custom_version_1.png"
+    map1_file.write_bytes(b"VERSION_1_BYTES")
+    map2_file = map_dir / "custom_version_2.png"
+    map2_file.write_bytes(b"VERSION_2_BYTES")
+
+    active_meta = map_dir / "active_map.json"
+    active_meta.write_text(json.dumps({"active_map": "custom_version_1.png"}), encoding="utf-8")
+
+    with patch("bot.sections.map.MAP_DIR", str(map_dir)):
+        Map.clear_cache()
+        map_sec = Map()
+        assert map_sec.image_path.endswith("custom_version_1.png")
+
+        # Simulate Telegram upload and caching
+        photo_mock = MagicMock()
+        photo_mock.file_id = "file_id_v1"
+        sent_msg_mock = MagicMock()
+        sent_msg_mock.photo = (photo_mock,)
+        mock_message.reply_photo.return_value = sent_msg_mock
+
+        await map_sec.send_response(mock_message)
+        assert map_sec.cached_file_id == "file_id_v1"
+
+        # Now update active map to version 2 (simulating admin action or file change)
+        active_meta.write_text(json.dumps({"active_map": "custom_version_2.png"}), encoding="utf-8")
+
+        # The existing singleton instance should dynamically reflect the new active map
+        assert map_sec.image_path.endswith("custom_version_2.png")
+        # Cached file_id from version 1 is automatically invalidated
+        assert map_sec.cached_file_id is None
+
+        photo_mock2 = MagicMock()
+        photo_mock2.file_id = "file_id_v2"
+        sent_msg_mock2 = MagicMock()
+        sent_msg_mock2.photo = (photo_mock2,)
+        mock_message.reply_photo.return_value = sent_msg_mock2
+
+        await map_sec.send_response(mock_message)
+        assert map_sec.cached_file_id == "file_id_v2"
+
+
+@pytest.mark.asyncio
+async def test_map_section_no_map_available_returns_placeholder(tmp_path, mock_message):
+    empty_map_dir = tmp_path / "empty_map"
+    empty_map_dir.mkdir(parents=True, exist_ok=True)
+
+    with patch("bot.sections.map.MAP_DIR", str(empty_map_dir)), patch("bot.sections.map.MAP_PATH", str(empty_map_dir / "nonexistent.png")):
+        Map.clear_cache()
+        map_sec = Map()
+        assert map_sec.image_path is None
+        assert map_sec.cached_file_id is None
+        assert map_sec.get_display_text() == MAP_UNAVAILABLE_MESSAGE
+
+        await map_sec.send_response(mock_message)
+        mock_message.reply_photo.assert_not_called()
+        mock_message.reply_text.assert_awaited_once()
+        kwargs = mock_message.reply_text.call_args.kwargs
+        assert kwargs["text"] == MAP_UNAVAILABLE_MESSAGE
+        assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+        assert kwargs["reply_markup"] is not None
+
+
+@pytest.mark.asyncio
+async def test_map_section_upload_failure_returns_placeholder(tmp_path, mock_message):
+    map_dir = tmp_path / "map_fail"
+    map_dir.mkdir(parents=True, exist_ok=True)
+    bad_map_file = map_dir / "corrupted.png"
+    bad_map_file.write_bytes(b"BAD_IMAGE")
+    active_meta = map_dir / "active_map.json"
+    active_meta.write_text(json.dumps({"active_map": "corrupted.png"}), encoding="utf-8")
+
+    with patch("bot.sections.map.MAP_DIR", str(map_dir)):
+        Map.clear_cache()
+        map_sec = Map()
+        mock_message.reply_photo.side_effect = Exception("Telegram API upload failed")
+
+        await map_sec.send_response(mock_message)
+        mock_message.reply_text.assert_awaited_once()
+        kwargs = mock_message.reply_text.call_args.kwargs
+        assert kwargs["text"] == MAP_UNAVAILABLE_MESSAGE
+        assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+
+
+@pytest.mark.asyncio
+async def test_map_section_mtime_invalidation(tmp_path, mock_message):
+    map_dir = tmp_path / "map_mtime"
+    map_dir.mkdir(parents=True, exist_ok=True)
+    map_file = map_dir / "map.png"
+    map_file.write_bytes(b"INITIAL_MAP_CONTENT")
+
+    with patch("bot.sections.map.MAP_DIR", str(map_dir)), patch("bot.sections.map.MAP_PATH", str(map_file)):
+        Map.clear_cache()
+        map_sec = Map()
+
+        photo_mock = MagicMock()
+        photo_mock.file_id = "initial_file_id"
+        sent_msg_mock = MagicMock()
+        sent_msg_mock.photo = (photo_mock,)
+        mock_message.reply_photo.return_value = sent_msg_mock
+
+        await map_sec.send_response(mock_message)
+        assert map_sec.cached_file_id == "initial_file_id"
+
+        # Overwrite file with new content and update its mtime
+        import time
+        new_mtime = time.time() + 10.0
+        map_file.write_bytes(b"UPDATED_MAP_CONTENT")
+        os.utime(str(map_file), (new_mtime, new_mtime))
+
+        # Cache should now be automatically invalidated because file mtime changed
+        assert map_sec.cached_file_id is None
+
+        photo_mock2 = MagicMock()
+        photo_mock2.file_id = "updated_file_id"
+        sent_msg_mock2 = MagicMock()
+        sent_msg_mock2.photo = (photo_mock2,)
+        mock_message.reply_photo.return_value = sent_msg_mock2
+
+        await map_sec.send_response(mock_message)
+        assert map_sec.cached_file_id == "updated_file_id"
+
+
+@pytest.mark.asyncio
+async def test_map_section_clear_cache_utility():
+    Map._global_cached_file_id = "test_id"
+    Map._global_cached_image_path = "/path/test.png"
+    Map._global_cached_mtime = 12345.0
+
+    Map.clear_cache()
+    assert Map._global_cached_file_id is None
+    assert Map._global_cached_image_path is None
+    assert Map._global_cached_mtime is None
 
 
 @pytest.mark.asyncio

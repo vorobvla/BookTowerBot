@@ -71,6 +71,24 @@ class AdminResponse:
         )
 
     @classmethod
+    def binary(
+        cls,
+        data: bytes,
+        content_type: str = "application/octet-stream",
+        status_code: int = 200,
+        headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[List[str]] = None,
+    ) -> "AdminResponse":
+        """Construct a binary response (e.g. for image or static asset files)."""
+        return cls(
+            body=data,
+            status_code=status_code,
+            content_type=content_type,
+            headers=headers,
+            cookies=cookies,
+        )
+
+    @classmethod
     def unauthorized(
         cls,
         message: str = "Unauthorized",

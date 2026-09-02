@@ -8,6 +8,7 @@ from bot.content import (
     HELP_MESSAGE,
     MAP_MESSAGE,
     MAP_PATH,
+    MAP_UNAVAILABLE_MESSAGE,
     RECOMMENDATIONS_MESSAGE,
     RECS_PATH,
     START_MESSAGE,
@@ -35,6 +36,11 @@ def test_help_message_contains_all_command_references():
 
 def test_map_message_defined():
     assert isinstance(MAP_MESSAGE, str)
+
+
+def test_map_unavailable_message_defined():
+    assert isinstance(MAP_UNAVAILABLE_MESSAGE, str) and len(MAP_UNAVAILABLE_MESSAGE) > 0
+    assert "недоступна" in MAP_UNAVAILABLE_MESSAGE.lower() or "карта" in MAP_UNAVAILABLE_MESSAGE.lower()
 
 
 def test_timetable_message_contains_schedule_prompt():
