@@ -13,6 +13,7 @@ from bot.content import (
     BTN_MAP,
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
+    BTN_SHOW_PARTICIPANTS,
     BTN_TIMETABLE,
     CB_CHILDREN_ACTIVITY,
     CB_PARTICIPANTS,
@@ -50,5 +51,15 @@ def get_main_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(BTN_PARTICIPANTS, callback_data=CB_PARTICIPANTS),
             InlineKeyboardButton(BTN_HELP, callback_data=CB_HELP),
         ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_map_inline_keyboard() -> InlineKeyboardMarkup:
+    """Returns an inline keyboard with a single 'Show participants' button."""
+    keyboard = [
+        [
+            InlineKeyboardButton(BTN_SHOW_PARTICIPANTS, callback_data=CB_PARTICIPANTS),
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)

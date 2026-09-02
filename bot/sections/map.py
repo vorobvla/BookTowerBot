@@ -8,7 +8,7 @@ from telegram import Message
 from telegram.constants import ParseMode
 
 from bot.content import BTN_MAP, MAP_DIR, MAP_MESSAGE, MAP_PATH, MAP_UNAVAILABLE_MESSAGE
-from bot.keyboards import CB_MAP
+from bot.keyboards import CB_MAP, get_main_reply_keyboard, get_map_inline_keyboard
 from bot.sections.base import BaseSection
 
 logger = logging.getLogger(__name__)
@@ -185,6 +185,11 @@ class Map(BaseSection):
 
     def get_text_content(self) -> str:
         return MAP_MESSAGE
+
+    def get_reply_markup(self, inline: bool = False):
+        if inline:
+            return get_map_inline_keyboard()
+        return get_main_reply_keyboard()
 
     def get_display_text(self) -> str:
         current_path = self.image_path

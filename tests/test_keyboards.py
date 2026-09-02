@@ -6,6 +6,7 @@ from bot.content import (
     BTN_MAP,
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
+    BTN_SHOW_PARTICIPANTS,
     BTN_TIMETABLE,
     CB_CHILDREN_ACTIVITY,
     CB_PARTICIPANTS,
@@ -17,6 +18,7 @@ from bot.keyboards import (
     CB_TIMETABLE,
     get_main_inline_keyboard,
     get_main_reply_keyboard,
+    get_map_inline_keyboard,
 )
 
 
@@ -45,3 +47,13 @@ def test_get_main_inline_keyboard():
         [(BTN_PARTICIPANTS, CB_PARTICIPANTS), (BTN_HELP, CB_HELP)],
     ]
     assert inline_buttons == expected
+
+
+def test_get_map_inline_keyboard():
+    keyboard = get_map_inline_keyboard()
+    assert len(keyboard.inline_keyboard) == 1
+    assert len(keyboard.inline_keyboard[0]) == 1
+    btn = keyboard.inline_keyboard[0][0]
+    assert btn.text == "📍 Информация о стендах участников"
+    assert btn.text == BTN_SHOW_PARTICIPANTS
+    assert btn.callback_data == CB_PARTICIPANTS

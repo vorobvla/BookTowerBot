@@ -5,6 +5,7 @@ from bot.content import (
     BTN_MAP,
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
+    BTN_SHOW_PARTICIPANTS,
     BTN_TIMETABLE,
     HELP_MESSAGE,
     MAP_MESSAGE,
@@ -85,5 +86,6 @@ def test_button_constants():
     assert isinstance(BTN_TIMETABLE, str) and len(BTN_TIMETABLE) > 0
     assert isinstance(BTN_RECOMMENDATIONS, str) and len(BTN_RECOMMENDATIONS) > 0
     assert isinstance(BTN_PARTICIPANTS, str) and len(BTN_PARTICIPANTS) > 0
+    assert isinstance(BTN_SHOW_PARTICIPANTS, str) and BTN_SHOW_PARTICIPANTS == "📍 Информация о стендах участников"
     assert isinstance(BTN_HELP, str) and len(BTN_HELP) > 0
     assert isinstance(UNKNOWN_COMMAND_MESSAGE, str) and len(UNKNOWN_COMMAND_MESSAGE) > 0

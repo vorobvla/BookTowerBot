@@ -108,6 +108,9 @@ async def test_map_handler_returns_photo():
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
     assert kwargs["reply_markup"] is not None
+    assert len(kwargs["reply_markup"].inline_keyboard) == 1
+    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
 
 
 @pytest.mark.asyncio
@@ -123,6 +126,9 @@ async def test_map_handler_with_existing_file():
     kwargs = update.effective_message.reply_photo.call_args.kwargs
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+    assert kwargs["reply_markup"] is not None
+    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
 
 
 @pytest.mark.asyncio
@@ -139,6 +145,9 @@ async def test_button_callback_handler_map_with_existing_file():
     kwargs = update.callback_query.message.reply_photo.call_args.kwargs
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+    assert kwargs["reply_markup"] is not None
+    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
 
 
 @pytest.mark.asyncio
@@ -205,6 +214,9 @@ async def test_button_callback_handler_map():
     kwargs = update.callback_query.message.reply_photo.call_args.kwargs
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+    assert kwargs["reply_markup"] is not None
+    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
 
 
 @pytest.mark.asyncio
@@ -263,6 +275,28 @@ async def test_button_callback_handler_participants_flow():
     update_item.callback_query.edit_message_text.assert_awaited_once()
     kwargs_item = update_item.callback_query.edit_message_text.call_args.kwargs
     assert kwargs_item["reply_markup"] is not None
+
+
+@pytest.mark.asyncio
+async def test_map_show_participants_inline_button_triggers_participants_list():
+    # Verify Map returns the button with CB_PARTICIPANTS
+    update_map = create_mock_update_callback(CB_MAP)
+    context = MagicMock()
+    await button_callback_handler(update_map, context)
+    map_markup = update_map.callback_query.message.reply_photo.call_args.kwargs["reply_markup"]
+    assert len(map_markup.inline_keyboard) == 1
+    assert map_markup.inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+    cb_data = map_markup.inline_keyboard[0][0].callback_data
+    assert cb_data == CB_PARTICIPANTS
+
+    # Tapping the button sends CB_PARTICIPANTS, returning the participants list
+    update_tapped = create_mock_update_callback(cb_data)
+    await button_callback_handler(update_tapped, context)
+    update_tapped.callback_query.answer.assert_awaited_once()
+    update_tapped.callback_query.edit_message_text.assert_awaited_once()
+    kwargs = update_tapped.callback_query.edit_message_text.call_args.kwargs
+    assert kwargs["text"] == PARTICIPANTS_MESSAGE
+    assert kwargs["reply_markup"] is not None
 
 
 @pytest.mark.asyncio

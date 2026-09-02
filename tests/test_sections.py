@@ -113,6 +113,10 @@ async def test_map_section_photo_dispatch(mock_message):
         kwargs = mock_message.reply_text.call_args.kwargs
         assert kwargs["text"] == MAP_UNAVAILABLE_MESSAGE
         assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+        markup = kwargs["reply_markup"]
+        assert markup is not None
+        assert markup.inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+        assert markup.inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
 
     # Case 2: file exists on disk
     mock_message.reply_photo.reset_mock()
@@ -123,6 +127,10 @@ async def test_map_section_photo_dispatch(mock_message):
         kwargs = mock_message.reply_photo.call_args.kwargs
         assert kwargs["caption"] == MAP_MESSAGE
         assert kwargs["parse_mode"] == ParseMode.MARKDOWN
+        markup = kwargs["reply_markup"]
+        assert markup is not None
+        assert markup.inline_keyboard[0][0].text == "📍 Информация о стендах участников"
+        assert markup.inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
 
 
 @pytest.mark.asyncio
@@ -344,6 +352,21 @@ async def test_map_section_clear_cache_utility():
     assert Map._global_cached_file_id is None
     assert Map._global_cached_image_path is None
     assert Map._global_cached_mtime is None
+
+
+def test_map_section_get_reply_markup():
+    map_sec = Map()
+    inline_markup = map_sec.get_reply_markup(inline=True)
+    assert inline_markup is not None
+    assert len(inline_markup.inline_keyboard) == 1
+    assert len(inline_markup.inline_keyboard[0]) == 1
+    btn = inline_markup.inline_keyboard[0][0]
+    assert btn.text == "📍 Информация о стендах участников"
+    assert btn.callback_data == CB_PARTICIPANTS
+
+    reply_markup = map_sec.get_reply_markup(inline=False)
+    assert reply_markup is not None
+    assert hasattr(reply_markup, "keyboard")
 
 
 @pytest.mark.asyncio
