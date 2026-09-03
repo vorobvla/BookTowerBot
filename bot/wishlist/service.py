@@ -230,11 +230,11 @@ class WishlistService:
         books = self.get_wishlist(user_id)
         if not books:
             return (
-                "📭 *Ваш список покупок пока пуст.*\n\n"
+                "📭 *Ваш вишлист пока пуст.*\n\n"
                 "Нажмите «Добавить книгу» (или введите /addbook), чтобы добавить книгу в список."
             )
 
-        lines = ["📋 *Ваш список покупок:*\n"]
+        lines = ["📋 *Ваш вишлист:*\n"]
         for idx, b in enumerate(books, start=1):
             lines.append(b.format_entry(index=idx))
         return "\n".join(lines)

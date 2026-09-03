@@ -25,7 +25,7 @@ class AdminConfig:
 
     host: str = "0.0.0.0"
     port: int = 8080
-    auth_db_path: str = str(PROJECT_ROOT / "assets" / "db" / "admin_users.db")
+    auth_db_path: str = str(PROJECT_ROOT / "assets" / "db" / ".admin_users.db")
     session_cookie_name: str = "booktower_admin_session"
     session_timeout_seconds: int = 3600 * 24  # 24 hours
     assets_path: str = ASSETS_PATH
@@ -46,10 +46,10 @@ class AdminConfig:
             port = 8080
 
         auth_db_path_raw = (
-            os.getenv("ADMIN_AUTH_DB_PATH")
+            os.getenv("ADMIN_USERS_DB_PATH")
             or os.getenv("ADMIN_DB_PATH")
             or os.getenv("AUTH_DB_PATH")
-            or "assets/db/admin_users.db"
+            or "assets/db/.admin_users.db"
         ).strip()
         if auth_db_path_raw == ":memory:":
             auth_db_path = ":memory:"

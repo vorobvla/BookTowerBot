@@ -77,7 +77,7 @@ def temp_admin_env():
     with open(map_file, "wb") as f:
         f.write(b"PNG_INITIAL_MAP_CONTENT")
 
-    auth_db = os.path.join(temp_dir, "test_admin_users.db")
+    auth_db = os.path.join(temp_dir, "test_.admin_users.db")
     part_dir = os.path.join(temp_dir, "participants")
     os.makedirs(part_dir, exist_ok=True)
     part_file = os.path.join(part_dir, "participants.json")
@@ -532,7 +532,7 @@ def test_auth_cli_and_bash_script(temp_admin_env):
     assert auth.is_confirmed("bash_decline") is False
 
     script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "auth_approval", "approveAdmins.sh")
-    env = dict(os.environ, ADMIN_AUTH_DB_PATH=config.auth_db_path)
+    env = dict(os.environ, ADMIN_USERS_DB_PATH=config.auth_db_path)
 
     # Send 'y\nn\n' to bash script
     res = subprocess.run([script_path], input="y\nn\n", env=env, capture_output=True, text=True)
@@ -1035,14 +1035,14 @@ def test_admin_config_from_env_defaults_and_overrides():
         assert cfg.port == 8080
         assert cfg.session_cookie_name == "booktower_admin_session"
         assert cfg.session_timeout_seconds == 86400
-        assert cfg.auth_db_path.endswith("assets/db/admin_users.db")
+        assert cfg.auth_db_path.endswith("assets/db/.admin_users.db")
         assert cfg.map_dir.endswith("assets/map")
         assert cfg.map_path.endswith("assets/map/map.png")
 
     custom_env = {
         "ADMIN_HOST": "127.0.0.1",
         "ADMIN_PORT": "9000",
-        "ADMIN_AUTH_DB_PATH": "custom/auth.db",
+        "ADMIN_USERS_DB_PATH": "custom/auth.db",
         "ADMIN_SESSION_COOKIE_NAME": "custom_cookie",
         "ADMIN_SESSION_TIMEOUT_SECONDS": "7200",
         "ASSETS_PATH": "custom_assets",
@@ -1073,7 +1073,7 @@ def test_authenticator_anchored_to_project_root_regardless_of_cwd(tmp_path):
         os.chdir(str(tmp_path))
         auth = AdminAuthenticator()
         assert os.path.isabs(auth.db_path)
-        assert "assets/db/admin_users.db" in auth.db_path
+        assert "assets/db/.admin_users.db" in auth.db_path
         assert not auth.db_path.startswith(str(tmp_path))
     finally:
         os.chdir(orig_cwd)

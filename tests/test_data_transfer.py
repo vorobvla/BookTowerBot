@@ -29,7 +29,7 @@ def sample_assets_dir():
     # db/
     db_dir = os.path.join(temp_dir, "db")
     os.makedirs(db_dir, exist_ok=True)
-    with sqlite3.connect(os.path.join(db_dir, "admin_users.db")) as conn:
+    with sqlite3.connect(os.path.join(db_dir, ".admin_users.db")) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS dummy (id INT)")
     with sqlite3.connect(os.path.join(db_dir, "wishlist.db")) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS dummy (id INT)")
@@ -122,7 +122,7 @@ class TestAdminDataTransferService:
         # Verify zip content
         with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
             namelist = zf.namelist()
-            assert "db/admin_users.db" in namelist
+            assert "db/.admin_users.db" in namelist
             assert "db/wishlist.db" in namelist
             assert "map/map.png" in namelist
             assert "map/active_map.json" in namelist
@@ -256,7 +256,7 @@ class TestAdminDataTransferService:
         # Verify participants, map, db were untouched
         assert os.path.exists(os.path.join(sample_assets_dir, "participants", "participants.json"))
         assert os.path.exists(os.path.join(sample_assets_dir, "map", "map.png"))
-        assert os.path.exists(os.path.join(sample_assets_dir, "db", "admin_users.db"))
+        assert os.path.exists(os.path.join(sample_assets_dir, "db", ".admin_users.db"))
 
     def test_import_multiple_selected_components(self, sample_assets_dir):
         # Create a zip containing new recs, participants, and timetables
@@ -293,7 +293,7 @@ class TestAdminWebDataEndpoints:
         config = AdminConfig(
             host="127.0.0.1",
             port=0,
-            auth_db_path=os.path.join(sample_assets_dir, "db", "admin_users.db"),
+            auth_db_path=os.path.join(sample_assets_dir, "db", ".admin_users.db"),
             assets_path=sample_assets_dir,
             recs_path=os.path.join(sample_assets_dir, "recs", "recs.json"),
             timetables_path=os.path.join(sample_assets_dir, "timetables"),

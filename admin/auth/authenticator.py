@@ -30,7 +30,7 @@ class AdminAuthenticator:
         db_path: Optional[str] = None,
     ):
         self.config = config or AdminConfig.from_env()
-        raw_db_path = db_path or getattr(self.config, "auth_db_path", str(PROJECT_ROOT / "assets" / "db" / "admin_users.db"))
+        raw_db_path = db_path or getattr(self.config, "auth_db_path", str(PROJECT_ROOT / "assets" / "db" / ".admin_users.db"))
         if raw_db_path == ":memory:":
             self.db_path = ":memory:"
         else:
