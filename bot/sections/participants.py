@@ -79,8 +79,14 @@ class Participants(BaseSection):
         if data == self.callback_data or data == CB_PARTICIPANTS_LIST:
             await self._show_participants(query)
         elif data.startswith(CB_PART_ITEM_PREFIX):
-            item_id = data[len(CB_PART_ITEM_PREFIX):]
-            await self._show_participant_details(query, item_id)
+            item_payload = data[len(CB_PART_ITEM_PREFIX):]
+            if ":s:" in item_payload:
+                item_id, stand_key = item_payload.split(":s:", 1)
+            elif ":stand:" in item_payload:
+                item_id, stand_key = item_payload.split(":stand:", 1)
+            else:
+                item_id, stand_key = item_payload, None
+            await self._show_participant_details(query, item_id, stand_key=stand_key)
         else:
             await self._show_participants(query)
 
@@ -88,9 +94,14 @@ class Participants(BaseSection):
         markup = self.get_reply_markup(inline=True)
         await self._edit_or_reply(query, self.get_text_content(), markup)
 
-    async def _show_participant_details(self, query, item_id: str) -> None:
+    async def _show_participant_details(
+        self,
+        query,
+        item_id: str,
+        stand_key: Optional[str] = None,
+    ) -> None:
         text = self.service.format_participant_details(item_id)
-        markup = get_participant_details_keyboard()
+        markup = get_participant_details_keyboard(stand_key=stand_key)
         await self._edit_or_reply(query, text, markup)
 
     async def _edit_or_reply(self, query, text: str, markup) -> None:

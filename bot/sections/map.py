@@ -7,8 +7,23 @@ from typing import Optional
 from telegram import Message
 from telegram.constants import ParseMode
 
-from bot.content import BTN_MAP, MAP_DIR, MAP_MESSAGE, MAP_PATH, MAP_UNAVAILABLE_MESSAGE
-from bot.keyboards import CB_MAP, get_main_reply_keyboard, get_map_inline_keyboard
+from bot.content import (
+    BTN_MAP,
+    CB_MAP,
+    CB_STANDS,
+    CB_STAND_PREFIX,
+    MAP_DIR,
+    MAP_MESSAGE,
+    MAP_PATH,
+    MAP_UNAVAILABLE_MESSAGE,
+)
+from bot.keyboards import (
+    get_main_reply_keyboard,
+    get_map_inline_keyboard,
+    get_stands_grid_inline_keyboard,
+)
+from bot.participants.keyboards import get_stand_participants_inline_keyboard
+from bot.participants.service import ParticipantsService
 from bot.sections.base import BaseSection
 
 logger = logging.getLogger(__name__)
@@ -81,11 +96,13 @@ class Map(BaseSection):
         self,
         image_path: Optional[str] = None,
         cached_file_id: Optional[str] = None,
+        participants_service: Optional[ParticipantsService] = None,
     ):
         self._custom_image_path: Optional[str] = image_path
         self._cached_file_id: Optional[str] = cached_file_id
         self._cached_image_path: Optional[str] = image_path if cached_file_id else None
         self._cached_mtime: Optional[float] = None
+        self.participants_service = participants_service or ParticipantsService()
 
     @classmethod
     def clear_cache(cls) -> None:
@@ -190,6 +207,86 @@ class Map(BaseSection):
         if inline:
             return get_map_inline_keyboard()
         return get_main_reply_keyboard()
+
+    def matches_callback(self, callback_data: str) -> bool:
+        """Check whether callback data belongs to the map or stand navigation flow."""
+        return (
+            callback_data == self.callback_data
+            or callback_data == CB_STANDS
+            or callback_data.startswith(CB_STAND_PREFIX)
+        )
+
+    async def handle_callback_query(self, query) -> None:
+        """Handle inline button callbacks for map and stand selection."""
+        data = query.data
+        if data == self.callback_data:
+            if getattr(query, "message", None):
+                await self.send_response(query.message, inline=True)
+        elif data == CB_STANDS:
+            await self._show_stands_grid(query)
+        elif data.startswith(CB_STAND_PREFIX):
+            stand_key = data[len(CB_STAND_PREFIX) :]
+            await self._show_stand_participants(query, stand_key)
+        else:
+            if getattr(query, "message", None):
+                await self.send_response(query.message, inline=True)
+
+    async def _show_stands_grid(self, query) -> None:
+        stands = self.participants_service.get_stands()
+        grid_markup = get_stands_grid_inline_keyboard(stands=stands)
+        if hasattr(query, "edit_message_reply_markup") and callable(query.edit_message_reply_markup):
+            try:
+                await query.edit_message_reply_markup(reply_markup=grid_markup)
+                return
+            except Exception:
+                pass
+        text = "📍 *Стенды участников*\n\nВыберите номер стенда:"
+        await self._edit_or_reply(query, text, grid_markup)
+
+    async def _show_stand_participants(self, query, stand_key: str) -> None:
+        stands = self.participants_service.get_stands()
+        if stand_key.isdigit():
+            idx = int(stand_key)
+            stand_name = stands[idx] if 0 <= idx < len(stands) else stand_key
+        else:
+            stand_name = stand_key
+
+        all_participants = self.participants_service.get_participants()
+        stand_participants = [
+            p for p in all_participants if p.stand.strip().lower() == stand_name.strip().lower()
+        ]
+
+        if not stand_participants:
+            text = f"📍 *Стенд {stand_name}*\n\nИнформация об участниках на этом стенде не найдена."
+            markup = get_stands_grid_inline_keyboard(stands=stands)
+        else:
+            text = f"📍 *Стенд {stand_name}*\n\nВыберите участника:"
+            markup = get_stand_participants_inline_keyboard(
+                stand_participants,
+                all_participants=all_participants,
+                stand_key=stand_key,
+            )
+
+        await self._edit_or_reply(query, text, markup)
+
+    async def _edit_or_reply(self, query, text: str, markup) -> None:
+        if hasattr(query, "edit_message_text") and callable(query.edit_message_text):
+            try:
+                await query.edit_message_text(
+                    text=text,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=markup,
+                )
+                return
+            except Exception:
+                pass
+
+        if getattr(query, "message", None):
+            await query.message.reply_text(
+                text=text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=markup,
+            )
 
     def get_display_text(self) -> str:
         current_path = self.image_path

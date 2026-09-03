@@ -12,6 +12,7 @@ from bot.content import (
     BTN_MAP,
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
+    BTN_SHOW_STANDS,
     BTN_TIMETABLE,
     CHILDREN_ACTIVITY_MESSAGE,
     HELP_MESSAGE,
@@ -28,6 +29,7 @@ from bot.keyboards import (
     CB_MAP,
     CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
+    CB_STANDS,
     CB_TIMETABLE,
 )
 from bot.sections import (
@@ -115,8 +117,8 @@ async def test_map_section_photo_dispatch(mock_message):
         assert kwargs["parse_mode"] == ParseMode.MARKDOWN
         markup = kwargs["reply_markup"]
         assert markup is not None
-        assert markup.inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-        assert markup.inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
+        assert markup.inline_keyboard[0][0].text == BTN_SHOW_STANDS
+        assert markup.inline_keyboard[0][0].callback_data == CB_STANDS
 
     # Case 2: file exists on disk
     mock_message.reply_photo.reset_mock()
@@ -129,8 +131,8 @@ async def test_map_section_photo_dispatch(mock_message):
         assert kwargs["parse_mode"] == ParseMode.MARKDOWN
         markup = kwargs["reply_markup"]
         assert markup is not None
-        assert markup.inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-        assert markup.inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
+        assert markup.inline_keyboard[0][0].text == BTN_SHOW_STANDS
+        assert markup.inline_keyboard[0][0].callback_data == CB_STANDS
 
 
 @pytest.mark.asyncio
@@ -146,7 +148,7 @@ async def test_map_section_caches_and_reuses_file_id(mock_message):
     mock_message.reply_photo.return_value = sent_msg_mock
 
     m_open = mock_open(read_data=b"fake_png")
-    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open:
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open, patch("bot.participants.service.ParticipantsService.get_stands", return_value=["1"]):
         await map_sec.send_response(mock_message)
         assert mocked_open.called
         assert map_sec.cached_file_id == "telegram_photo_file_id_999"
@@ -154,7 +156,7 @@ async def test_map_section_caches_and_reuses_file_id(mock_message):
     # Second send: should use cached file_id and NOT open file
     mock_message.reply_photo.reset_mock()
     m_open2 = mock_open(read_data=b"fake_png")
-    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open2) as mocked_open:
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open2) as mocked_open, patch("bot.participants.service.ParticipantsService.get_stands", return_value=["1"]):
         await map_sec.send_response(mock_message)
         assert not mocked_open.called
         mock_message.reply_photo.assert_awaited_once()
@@ -180,7 +182,7 @@ async def test_map_section_fallback_on_invalid_cached_file_id(mock_message):
     mock_message.reply_photo.side_effect = reply_side_effect
 
     m_open = mock_open(read_data=b"fake_png")
-    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open:
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open, patch("bot.participants.service.ParticipantsService.get_stands", return_value=["1"]):
         await map_sec.send_response(mock_message)
         assert mocked_open.called
         assert map_sec.cached_file_id == "new_valid_file_id"
@@ -201,7 +203,7 @@ async def test_map_section_global_cache_sharing(mock_message):
     mock_message.reply_photo.return_value = sent_msg_mock
 
     m_open = mock_open(read_data=b"fake_plan_bytes")
-    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open:
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open) as mocked_open, patch("bot.participants.service.ParticipantsService.get_stands", return_value=["1"]):
         await map1.send_response(mock_message)
         assert mocked_open.called
         assert map1.cached_file_id == "shared_plan_file_id_123"
@@ -209,7 +211,7 @@ async def test_map_section_global_cache_sharing(mock_message):
 
     mock_message.reply_photo.reset_mock()
     m_open2 = mock_open(read_data=b"fake_plan_bytes")
-    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open2) as mocked_open2:
+    with patch("os.path.exists", return_value=True), patch("builtins.open", m_open2) as mocked_open2, patch("bot.participants.service.ParticipantsService.get_stands", return_value=["1"]):
         await map2.send_response(mock_message)
         assert not mocked_open2.called
         mock_message.reply_photo.assert_awaited_once()
@@ -359,14 +361,84 @@ def test_map_section_get_reply_markup():
     inline_markup = map_sec.get_reply_markup(inline=True)
     assert inline_markup is not None
     assert len(inline_markup.inline_keyboard) == 1
-    assert len(inline_markup.inline_keyboard[0]) == 1
-    btn = inline_markup.inline_keyboard[0][0]
-    assert btn.text == "📍 Информация о стендах участников"
-    assert btn.callback_data == CB_PARTICIPANTS
+    assert inline_markup.inline_keyboard[0][0].text == BTN_SHOW_STANDS
+    assert inline_markup.inline_keyboard[0][0].callback_data == CB_STANDS
 
     reply_markup = map_sec.get_reply_markup(inline=False)
     assert reply_markup is not None
     assert hasattr(reply_markup, "keyboard")
+
+
+@pytest.mark.asyncio
+async def test_map_section_callbacks_and_stand_participants(tmp_path):
+    part_file = tmp_path / "participants.json"
+    part_file.write_text(
+        json.dumps({
+            "participants": [
+                {"name": "Издатель 1", "stand": "1"},
+                {"name": "Издатель 2", "stand": "1"},
+                {"name": "Издатель 3", "stand": "2"},
+            ]
+        }),
+        encoding="utf-8",
+    )
+    from bot.participants.service import ParticipantsService
+
+    svc = ParticipantsService(file_path=str(part_file))
+    map_sec = Map(participants_service=svc)
+
+    assert map_sec.matches_callback(CB_MAP)
+    assert map_sec.matches_callback(CB_STANDS)
+    assert map_sec.matches_callback("stand:0")
+    assert map_sec.matches_callback("stand:1")
+
+    # When CB_STANDS is tapped -> shows grid of stands
+    query_stands = AsyncMock()
+    query_stands.data = CB_STANDS
+    query_stands.edit_message_reply_markup = AsyncMock()
+    await map_sec.handle_callback_query(query_stands)
+    query_stands.edit_message_reply_markup.assert_awaited_once()
+    stands_markup = query_stands.edit_message_reply_markup.call_args.kwargs["reply_markup"]
+    assert len(stands_markup.inline_keyboard) == 1
+    assert stands_markup.inline_keyboard[0][0].text == "1"
+    assert stands_markup.inline_keyboard[0][1].text == "2"
+
+    # When stand:0 is selected (stand "1", has 2 participants)
+    query = AsyncMock()
+    query.data = "stand:0"
+    await map_sec.handle_callback_query(query)
+
+    query.edit_message_text.assert_awaited_once()
+    kwargs = query.edit_message_text.call_args.kwargs
+    assert "Стенд 1" in kwargs["text"]
+    assert "Выберите участника" in kwargs["text"]
+    markup = kwargs["reply_markup"]
+    assert len(markup.inline_keyboard) == 3  # 2 participant buttons + 1 back to map
+    assert "Издатель 1" in markup.inline_keyboard[0][0].text
+    assert "Издатель 2" in markup.inline_keyboard[1][0].text
+    assert markup.inline_keyboard[0][0].callback_data == "part_item:0:s:0"
+    assert markup.inline_keyboard[1][0].callback_data == "part_item:1:s:0"
+    assert markup.inline_keyboard[2][0].callback_data == CB_MAP
+
+    # When participant 0 from stand is clicked -> participant details with back button to stand:0
+    part_sec = Participants(service=svc)
+    query_part = AsyncMock()
+    query_part.data = markup.inline_keyboard[0][0].callback_data
+    await part_sec.handle_callback_query(query_part)
+    query_part.edit_message_text.assert_awaited_once()
+    part_kwargs = query_part.edit_message_text.call_args.kwargs
+    assert "Издатель 1" in part_kwargs["text"]
+    part_details_markup = part_kwargs["reply_markup"]
+    assert len(part_details_markup.inline_keyboard) == 1
+    back_to_stand_btn = part_details_markup.inline_keyboard[0][0]
+    assert back_to_stand_btn.callback_data == "stand:0"
+
+    # When back to stand is clicked -> returns to stand:0 participant list
+    query_back = AsyncMock()
+    query_back.data = back_to_stand_btn.callback_data
+    await map_sec.handle_callback_query(query_back)
+    query_back.edit_message_text.assert_awaited_once()
+    assert "Стенд 1" in query_back.edit_message_text.call_args.kwargs["text"]
 
 
 @pytest.mark.asyncio

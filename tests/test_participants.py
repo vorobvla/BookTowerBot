@@ -108,6 +108,14 @@ def test_participants_service_with_file(tmp_path):
     assert participants[1].stand == "2"
     assert participants[2].stand == "Zone-A"
 
+    # Test get_stands and get_participants_by_stand
+    stands = service.get_stands()
+    assert stands == ["1", "2", "Zone-A"]
+
+    parts_stand1 = service.get_participants_by_stand("1")
+    assert len(parts_stand1) == 1
+    assert parts_stand1[0].name == "Первый стенд"
+
     # Get by index
     p0 = service.get_participant_by_index(0)
     assert p0 is not None
@@ -127,6 +135,23 @@ def test_participants_service_with_file(tmp_path):
     details_md = service.format_participant_details("0")
     assert "Первый стенд" in details_md
     assert "📍 *Стенд:* 1" in details_md
+
+    # Multiple participants on same stand
+    file_path_multi = tmp_path / "participants_multi.json"
+    file_path_multi.write_text(
+        json.dumps({
+            "participants": [
+                {"name": "Издатель А", "stand": "1"},
+                {"name": "Издатель Б", "stand": "1"},
+                {"name": "Издатель В", "stand": "2"},
+            ]
+        }),
+        encoding="utf-8",
+    )
+    svc_multi = ParticipantsService(file_path=str(file_path_multi))
+    assert svc_multi.get_stands() == ["1", "2"]
+    assert len(svc_multi.get_participants_by_stand("1")) == 2
+    assert len(svc_multi.get_participants_by_stand("2")) == 1
 
 
 def test_participants_keyboards():

@@ -1,5 +1,6 @@
 """Keyboards for Telegram bot interactions."""
 
+from typing import List, Optional
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -14,6 +15,7 @@ from bot.content import (
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_SHOW_PARTICIPANTS,
+    BTN_SHOW_STANDS,
     BTN_TIMETABLE,
     BUTTON_CALLBACK_MAP,
     CB_CHILDREN_ACTIVITY,
@@ -21,6 +23,8 @@ from bot.content import (
     CB_MAP,
     CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
+    CB_STANDS,
+    CB_STAND_PREFIX,
     CB_TIMETABLE,
 )
 
@@ -55,10 +59,40 @@ def get_main_inline_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_map_inline_keyboard() -> InlineKeyboardMarkup:
-    """Returns an inline keyboard with a single 'Show participants' button."""
+    """Returns an inline keyboard with a single 'Show stands info' button."""
     keyboard = [
         [
-            InlineKeyboardButton(BTN_SHOW_PARTICIPANTS, callback_data=BUTTON_CALLBACK_MAP[BTN_SHOW_PARTICIPANTS]),
+            InlineKeyboardButton(
+                BTN_SHOW_STANDS,
+                callback_data=BUTTON_CALLBACK_MAP.get(BTN_SHOW_STANDS, CB_STANDS),
+            )
         ]
     ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_stands_grid_inline_keyboard(
+    stands: Optional[List[str]] = None,
+    columns: int = 4,
+) -> InlineKeyboardMarkup:
+    """Returns an inline keyboard arranged in a grid with only the names of stands."""
+    if stands is None:
+        from bot.participants.service import ParticipantsService
+
+        stands = ParticipantsService().get_stands()
+
+    keyboard: List[List[InlineKeyboardButton]] = []
+    if not stands:
+        return InlineKeyboardMarkup(keyboard)
+
+    for i in range(0, len(stands), columns):
+        row = []
+        for idx, stand in enumerate(stands[i : i + columns], start=i):
+            btn = InlineKeyboardButton(
+                text=str(stand),
+                callback_data=f"{CB_STAND_PREFIX}{idx}",
+            )
+            row.append(btn)
+        keyboard.append(row)
+
     return InlineKeyboardMarkup(keyboard)

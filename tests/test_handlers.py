@@ -39,6 +39,7 @@ from bot.keyboards import (
     CB_MAP,
     CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
+    CB_STANDS,
     CB_TIMETABLE,
 )
 
@@ -109,8 +110,7 @@ async def test_map_handler_returns_photo():
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
     assert kwargs["reply_markup"] is not None
     assert len(kwargs["reply_markup"].inline_keyboard) == 1
-    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_STANDS
 
 
 @pytest.mark.asyncio
@@ -127,8 +127,8 @@ async def test_map_handler_with_existing_file():
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
     assert kwargs["reply_markup"] is not None
-    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
+    assert len(kwargs["reply_markup"].inline_keyboard) == 1
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_STANDS
 
 
 @pytest.mark.asyncio
@@ -146,8 +146,8 @@ async def test_button_callback_handler_map_with_existing_file():
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
     assert kwargs["reply_markup"] is not None
-    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
+    assert len(kwargs["reply_markup"].inline_keyboard) == 1
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_STANDS
 
 
 @pytest.mark.asyncio
@@ -215,8 +215,8 @@ async def test_button_callback_handler_map():
     assert kwargs["caption"] == MAP_MESSAGE
     assert kwargs["parse_mode"] == ParseMode.MARKDOWN
     assert kwargs["reply_markup"] is not None
-    assert kwargs["reply_markup"].inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_PARTICIPANTS
+    assert len(kwargs["reply_markup"].inline_keyboard) == 1
+    assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == CB_STANDS
 
 
 @pytest.mark.asyncio
@@ -278,25 +278,56 @@ async def test_button_callback_handler_participants_flow():
 
 
 @pytest.mark.asyncio
-async def test_map_show_participants_inline_button_triggers_participants_list():
-    # Verify Map returns the button with CB_PARTICIPANTS
+async def test_map_stand_inline_button_triggers_stand_participants():
+    # 1. Verify Map returns single button "Show stands info"
     update_map = create_mock_update_callback(CB_MAP)
     context = MagicMock()
     await button_callback_handler(update_map, context)
     map_markup = update_map.callback_query.message.reply_photo.call_args.kwargs["reply_markup"]
     assert len(map_markup.inline_keyboard) == 1
-    assert map_markup.inline_keyboard[0][0].text == "📍 Информация о стендах участников"
-    cb_data = map_markup.inline_keyboard[0][0].callback_data
-    assert cb_data == CB_PARTICIPANTS
+    assert map_markup.inline_keyboard[0][0].callback_data == CB_STANDS
 
-    # Tapping the button sends CB_PARTICIPANTS, returning the participants list
-    update_tapped = create_mock_update_callback(cb_data)
-    await button_callback_handler(update_tapped, context)
-    update_tapped.callback_query.answer.assert_awaited_once()
-    update_tapped.callback_query.edit_message_text.assert_awaited_once()
-    kwargs = update_tapped.callback_query.edit_message_text.call_args.kwargs
-    assert kwargs["text"] == PARTICIPANTS_MESSAGE
-    assert kwargs["reply_markup"] is not None
+    # 2. Tapping CB_STANDS returns grid of stands
+    update_stands = create_mock_update_callback(CB_STANDS)
+    update_stands.callback_query.edit_message_reply_markup = AsyncMock()
+    await button_callback_handler(update_stands, context)
+    update_stands.callback_query.answer.assert_awaited_once()
+    stands_markup = update_stands.callback_query.edit_message_reply_markup.call_args.kwargs["reply_markup"]
+    assert len(stands_markup.inline_keyboard) > 0
+    first_btn = stands_markup.inline_keyboard[0][0]
+    assert first_btn.callback_data.startswith("stand:")
+
+    # 3. Tapping stand button returns stand participants with interactive buttons
+    update_stand = create_mock_update_callback(first_btn.callback_data)
+    update_stand.callback_query.edit_message_text = AsyncMock()
+    await button_callback_handler(update_stand, context)
+    update_stand.callback_query.answer.assert_awaited_once()
+
+    # Reply should have been sent either by edit_message_text or reply_text
+    called = update_stand.callback_query.edit_message_text.called or update_stand.callback_query.message.reply_text.called
+    assert called
+
+    if update_stand.callback_query.edit_message_text.called:
+        stand_part_markup = update_stand.callback_query.edit_message_text.call_args.kwargs["reply_markup"]
+        part_btn = stand_part_markup.inline_keyboard[0][0]
+        assert part_btn.callback_data.startswith("part_item:")
+        assert ":s:" in part_btn.callback_data
+
+        # 4. Tapping participant button returns details with back button to stand
+        update_part = create_mock_update_callback(part_btn.callback_data)
+        update_part.callback_query.edit_message_text = AsyncMock()
+        await button_callback_handler(update_part, context)
+        update_part.callback_query.answer.assert_awaited_once()
+        part_details_markup = update_part.callback_query.edit_message_text.call_args.kwargs["reply_markup"]
+        back_btn = part_details_markup.inline_keyboard[0][0]
+        assert back_btn.callback_data == first_btn.callback_data
+
+        # 5. Tapping back button returns to the stand's participants
+        update_back = create_mock_update_callback(back_btn.callback_data)
+        update_back.callback_query.edit_message_text = AsyncMock()
+        await button_callback_handler(update_back, context)
+        update_back.callback_query.answer.assert_awaited_once()
+        assert "Стенд" in update_back.callback_query.edit_message_text.call_args.kwargs["text"]
 
 
 @pytest.mark.asyncio

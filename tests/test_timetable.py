@@ -94,16 +94,16 @@ def test_timetable_service_with_real_assets():
     assert day13.date == "13092026"
 
     locations = service.get_locations("13092026")
-    assert "Сцена" in locations
+    assert "Сцена не у рояля" in locations
     assert "Мастер-классы" in locations
 
-    events = service.get_events("13092026", "Сцена")
+    events = service.get_events("13092026", "Сцена не у рояля")
     assert len(events) >= 2
     assert events[0].time == "10:30"
 
-    formatted = service.format_timetable("13092026", "Сцена")
+    formatted = service.format_timetable("13092026", "Сцена не у рояля")
     assert "13.09.2026" in formatted
-    assert "Сцена" in formatted
+    assert "Сцена не у рояля" in formatted
 
 
 def test_timetable_keyboards():

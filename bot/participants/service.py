@@ -59,6 +59,23 @@ class ParticipantsService:
         except Exception:
             return []
 
+    def get_stands(self) -> List[str]:
+        """Return sorted list of unique non-empty stand names."""
+        participants = self.get_participants()
+        seen = set()
+        stands: List[str] = []
+        for p in participants:
+            st = p.stand.strip()
+            if st and st not in seen:
+                seen.add(st)
+                stands.append(st)
+        return stands
+
+    def get_participants_by_stand(self, stand: str) -> List[Participant]:
+        """Return all participants assigned to a given stand."""
+        clean = str(stand).strip().lower()
+        return [p for p in self.get_participants() if p.stand.strip().lower() == clean]
+
     def get_participant_by_index(self, index: int) -> Optional[Participant]:
         """Get participant by sorted list index."""
         participants = self.get_participants()
