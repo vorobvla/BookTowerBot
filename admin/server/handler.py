@@ -1,17 +1,32 @@
 """HTTP Request handler bridging standard library server with AdminRouter."""
 
 from http.server import BaseHTTPRequestHandler
+import logging
 from typing import Optional
 
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
 from admin.server.router import AdminRouter
 
+logger = logging.getLogger(__name__)
+
 
 class AdminHttpHandler(BaseHTTPRequestHandler):
     """Custom HTTP request handler using AdminRouter for routing."""
 
     router: Optional[AdminRouter] = None
+
+    def handle(self) -> None:
+        """Handle incoming connection, catching broken pipe / connection reset if client disconnects."""
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            logger.debug("Client disconnected before request completion.")
+        except OSError as e:
+            if getattr(e, "errno", None) in (32, 104):  # EPIPE, ECONNRESET
+                logger.debug("Client connection reset or broken pipe: %s", e)
+            else:
+                raise
 
     def do_GET(self) -> None:
         self._process_request("GET")
@@ -30,46 +45,54 @@ class AdminHttpHandler(BaseHTTPRequestHandler):
 
     def _process_request(self, method: str) -> None:
         """Process incoming request through AdminRouter and send back AdminResponse."""
-        if not self.router:
-            self.send_error(500, "Router not initialized")
-            return
-
-        # Read body if present
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b""
-
-        # Convert headers to simple dict
-        headers_dict = {k: v for k, v in self.headers.items()}
-
-        request = AdminRequest(
-            method=method,
-            path=self.path,
-            headers=headers_dict,
-            body=body,
-        )
-
         try:
-            response: AdminResponse = self.router.route(request)
-        except Exception as e:
-            err_html = f"<h1>500 Internal Server Error</h1><p>{e}</p>"
-            response = AdminResponse.html(err_html, status_code=500)
+            if not self.router:
+                self.send_error(500, "Router not initialized")
+                return
 
-        # Send status
-        self.send_response(response.status_code)
+            # Read body if present
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length) if content_length > 0 else b""
 
-        # Send headers
-        for header_name, header_val in response.headers.items():
-            self.send_header(header_name, header_val)
+            # Convert headers to simple dict
+            headers_dict = {k: v for k, v in self.headers.items()}
 
-        # Send cookies
-        for cookie_str in response.cookies:
-            self.send_header("Set-Cookie", cookie_str)
+            request = AdminRequest(
+                method=method,
+                path=self.path,
+                headers=headers_dict,
+                body=body,
+            )
 
-        self.end_headers()
+            try:
+                response: AdminResponse = self.router.route(request)
+            except Exception as e:
+                err_html = f"<h1>500 Internal Server Error</h1><p>{e}</p>"
+                response = AdminResponse.html(err_html, status_code=500)
 
-        # Send body
-        if response.body:
-            self.wfile.write(response.body)
+            # Send status
+            self.send_response(response.status_code)
+
+            # Send headers
+            for header_name, header_val in response.headers.items():
+                self.send_header(header_name, header_val)
+
+            # Send cookies
+            for cookie_str in response.cookies:
+                self.send_header("Set-Cookie", cookie_str)
+
+            self.end_headers()
+
+            # Send body
+            if response.body:
+                self.wfile.write(response.body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            logger.debug("Client disconnected during response write.")
+        except OSError as e:
+            if getattr(e, "errno", None) in (32, 104):
+                logger.debug("Client socket closed during response write: %s", e)
+            else:
+                raise
 
     def log_message(self, format: str, *args) -> None:
         """Suppress noisy default request logs in test/prod environments."""

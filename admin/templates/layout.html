@@ -544,6 +544,71 @@
         </div>
     </div>
 
+    <!-- Global LLM Import Modal -->
+    <div id="llmImportModalBackdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+        <div class="card" style="width: 100%; max-width: 540px; margin: 1rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+                <h3 id="llmImportModalTitle" style="margin: 0; color: #1e293b; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                    <span>📥</span>
+                    <span>Сгенерировать из внешнего источника</span>
+                </h3>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeLlmImportModal()" style="font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.5rem;" id="llmCloseBtn">✕</button>
+            </div>
+
+            <!-- Form view -->
+            <form id="llmImportForm" onsubmit="handleLlmImportSubmit(event)">
+                <input type="hidden" id="llmEntityInput" name="entity" value="">
+                <input type="hidden" id="llmDateInput" name="date" value="">
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem;">Источник данных:</label>
+                    <div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem;">
+                        <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="radio" name="source_type" value="file" checked onchange="toggleLlmSourceType('file')">
+                            <span>Загрузить файл</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="radio" name="source_type" value="url" onchange="toggleLlmSourceType('url')">
+                            <span>Веб-страница (URL)</span>
+                        </label>
+                    </div>
+
+                    <div id="llmFileGroup" class="form-group" style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">Выберите файл (.txt, .csv, .html, .md):</label>
+                        <input type="file" id="llmFileInput" name="file" class="form-control" accept=".txt,.csv,.json,.html,.htm,.md" style="padding: 0.4rem;">
+                    </div>
+
+                    <div id="llmUrlGroup" class="form-group" style="display: none; margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">Введите URL веб-страницы:</label>
+                        <input type="url" id="llmUrlInput" name="url" class="form-control" autocomplete="off">
+                    </div>
+                </div>
+
+                <div id="llmErrorContainer" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.75rem; border-radius: 6px; font-size: 0.875rem; margin-bottom: 1rem;"></div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeLlmImportModal()">Отмена</button>
+                    <button type="submit" class="btn" id="llmSubmitBtn">Загрузить</button>
+                </div>
+            </form>
+
+            <!-- Loading view with working indicator & abort button -->
+            <div id="llmLoadingContainer" style="display: none; text-align: center; padding: 1.5rem 1rem;">
+                <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 42px; height: 42px; animation: llmSpin 1s linear infinite; margin: 0 auto 1.25rem auto;"></div>
+                <h4 id="llmWorkingText" style="color: #1e293b; margin-bottom: 0.5rem; font-size: 1.1rem; font-weight: 600;">Работа с ИИ, подождите минуту</h4>
+                <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">LLM обрабатывает данные из внешнего источника</p>
+                <button type="button" id="llmAbortBtn" class="btn btn-danger" onclick="abortLlmImport()" style="padding: 0.5rem 1.25rem;">Прервать процесс</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+    @keyframes llmSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+
     <script>
     var currentEmojiTargetId = null;
     var currentEmojiPreviewId = null;
@@ -1013,9 +1078,187 @@
         if (e.key === 'Escape') {
             closeEmojiPicker();
             closeAndroidTimePicker();
+            closeLlmImportModal();
             if (typeof closeEditEventModal === 'function') closeEditEventModal();
+            if (typeof closeEditPartModal === 'function') closeEditPartModal();
         }
     });
+
+    // --- LLM Import Modal Logic ---
+    var currentLlmAbortController = null;
+
+    function openLlmImportModal(entity, dateKey) {
+        var entityInput = document.getElementById('llmEntityInput');
+        var dateInput = document.getElementById('llmDateInput');
+        if (entityInput) entityInput.value = entity || 'participants';
+        if (dateInput) dateInput.value = dateKey || '';
+
+        var fileInput = document.getElementById('llmFileInput');
+        var urlInput = document.getElementById('llmUrlInput');
+        if (fileInput) fileInput.value = '';
+        if (urlInput) urlInput.value = '';
+
+        var errEl = document.getElementById('llmErrorContainer');
+        if (errEl) {
+            errEl.style.display = 'none';
+            errEl.textContent = '';
+        }
+
+        var form = document.getElementById('llmImportForm');
+        var loading = document.getElementById('llmLoadingContainer');
+        var closeBtn = document.getElementById('llmCloseBtn');
+        if (form) form.style.display = 'block';
+        if (loading) loading.style.display = 'none';
+        if (closeBtn) closeBtn.style.display = 'block';
+
+        toggleLlmSourceType('file');
+        var radios = document.getElementsByName('source_type');
+        for (var i = 0; i < radios.length; i++) {
+            radios[i].checked = (radios[i].value === 'file');
+        }
+
+        var modal = document.getElementById('llmImportModalBackdrop');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeLlmImportModal() {
+        if (currentLlmAbortController) {
+            currentLlmAbortController.abort();
+            currentLlmAbortController = null;
+        }
+        var modal = document.getElementById('llmImportModalBackdrop');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function toggleLlmSourceType(type) {
+        var fileGroup = document.getElementById('llmFileGroup');
+        var urlGroup = document.getElementById('llmUrlGroup');
+        if (type === 'url') {
+            if (fileGroup) fileGroup.style.display = 'none';
+            if (urlGroup) urlGroup.style.display = 'block';
+            var urlInput = document.getElementById('llmUrlInput');
+            if (urlInput) urlInput.focus();
+        } else {
+            if (fileGroup) fileGroup.style.display = 'block';
+            if (urlGroup) urlGroup.style.display = 'none';
+        }
+    }
+
+    function abortLlmImport() {
+        if (currentLlmAbortController) {
+            currentLlmAbortController.abort();
+            currentLlmAbortController = null;
+        }
+        var loading = document.getElementById('llmLoadingContainer');
+        var form = document.getElementById('llmImportForm');
+        var closeBtn = document.getElementById('llmCloseBtn');
+        var errEl = document.getElementById('llmErrorContainer');
+        if (loading) loading.style.display = 'none';
+        if (form) form.style.display = 'block';
+        if (closeBtn) closeBtn.style.display = 'block';
+        if (errEl) {
+            errEl.textContent = 'Процесс загрузки был отменен.';
+            errEl.style.display = 'block';
+        }
+    }
+
+    function handleLlmImportSubmit(event) {
+        event.preventDefault();
+        var entity = (document.getElementById('llmEntityInput') || {}).value || 'participants';
+        var dateKey = (document.getElementById('llmDateInput') || {}).value || '';
+        var sourceType = 'file';
+        var radios = document.getElementsByName('source_type');
+        for (var i = 0; i < radios.length; i++) {
+            if (radios[i].checked) {
+                sourceType = radios[i].value;
+                break;
+            }
+        }
+
+        var errEl = document.getElementById('llmErrorContainer');
+        if (errEl) {
+            errEl.style.display = 'none';
+            errEl.textContent = '';
+        }
+
+        var formData = new FormData();
+        formData.append('entity', entity);
+        if (dateKey) {
+            formData.append('date', dateKey);
+        }
+
+        if (sourceType === 'file') {
+            var fileInput = document.getElementById('llmFileInput');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                if (errEl) {
+                    errEl.textContent = 'Пожалуйста, выберите файл для загрузки.';
+                    errEl.style.display = 'block';
+                }
+                return;
+            }
+            formData.append('file', fileInput.files[0]);
+        } else {
+            var urlInput = document.getElementById('llmUrlInput');
+            var urlVal = (urlInput ? urlInput.value : '').trim();
+            if (!urlVal) {
+                if (errEl) {
+                    errEl.textContent = 'Пожалуйста, укажите URL веб-страницы.';
+                    errEl.style.display = 'block';
+                }
+                return;
+            }
+            formData.append('url', urlVal);
+        }
+
+        var form = document.getElementById('llmImportForm');
+        var loading = document.getElementById('llmLoadingContainer');
+        var closeBtn = document.getElementById('llmCloseBtn');
+        if (form) form.style.display = 'none';
+        if (loading) loading.style.display = 'block';
+        if (closeBtn) closeBtn.style.display = 'none';
+
+        currentLlmAbortController = new AbortController();
+
+        fetch('/api/llm/load', {
+            method: 'POST',
+            body: formData,
+            signal: currentLlmAbortController.signal
+        })
+        .then(function(resp) {
+            return resp.json().then(function(data) {
+                if (!resp.ok) {
+                    throw new Error(data.error || ('Ошибка сервера: ' + resp.status));
+                }
+                return data;
+            });
+        })
+        .then(function(data) {
+            currentLlmAbortController = null;
+            isFormSubmitting = true;
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                window.location.reload();
+            }
+        })
+        .catch(function(err) {
+            if (err.name === 'AbortError') {
+                return;
+            }
+            currentLlmAbortController = null;
+            var loadEl = document.getElementById('llmLoadingContainer');
+            var formEl = document.getElementById('llmImportForm');
+            var closeEl = document.getElementById('llmCloseBtn');
+            var errorBox = document.getElementById('llmErrorContainer');
+            if (loadEl) loadEl.style.display = 'none';
+            if (formEl) formEl.style.display = 'block';
+            if (closeEl) closeEl.style.display = 'block';
+            if (errorBox) {
+                errorBox.textContent = 'Ошибка: ' + (err.message || 'Не удалось обработать данные через LLM');
+                errorBox.style.display = 'block';
+            }
+        });
+    }
 
     // Form submission flag to avoid unload prompt when deliberately submitting
     var isFormSubmitting = false;

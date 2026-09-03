@@ -1,11 +1,15 @@
 """Request router dispatching endpoints and enforcing auth middleware."""
 
-from typing import Optional
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urlparse
 
 from admin.auth.authenticator import AdminAuthenticator
 from admin.auth.session_manager import AdminSessionManager
 from admin.config import AdminConfig
+from admin.llm.transfer_to_json import InputType, LLMJsonConverter
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
 from admin.services.map_service import AdminMapService
@@ -13,6 +17,8 @@ from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
 from admin.views.template_renderer import AdminTemplateRenderer
+
+logger = logging.getLogger(__name__)
 
 
 class AdminRouter:
@@ -779,4 +785,252 @@ class AdminRouter:
                 )
                 return AdminResponse.json({"status": "ok"}, status_code=201)
 
+        if path in ("/api/llm/load", "/api/llm/import") and request.method == "POST":
+            return self._handle_post_llm_load(request)
+
         return AdminResponse.json({"error": "Endpoint not found"}, status_code=404)
+
+    # --- LLM Data Import Handlers ---
+
+    def _handle_post_llm_load(self, request: AdminRequest) -> AdminResponse:
+        """Handle LLM import from file or URL and stage data into appropriate service."""
+        form_or_json = request.json() if isinstance(request.json(), dict) else request.form_data
+        entity_raw = form_or_json.get("entity", "").strip().lower()
+        url = form_or_json.get("url", "").strip()
+        date_key = form_or_json.get("date", "").strip()
+        content = form_or_json.get("content", "")
+        file_obj = request.files.get("file")
+
+        # Normalize entity name
+        if entity_raw in ("participants", "participant"):
+            entity_name = "participants"
+            default_redirect = "/participants"
+        elif entity_raw in ("timetables", "timetable", "schedule"):
+            entity_name = "timetables"
+            default_redirect = f"/timetables/{date_key}" if date_key else "/timetables"
+        elif entity_raw in ("recommendations", "recs", "recommendation", "books"):
+            entity_name = "recommendations"
+            default_redirect = "/recs"
+        else:
+            return AdminResponse.json(
+                {"error": f"Неизвестный тип сущности '{entity_raw}'. Ожидается 'participants', 'timetables' или 'recommendations'"},
+                status_code=400,
+            )
+
+        try:
+            logger.info("Handling LLM import request for entity '%s' (url=%s, has_file=%s)", entity_name, bool(url), bool(file_obj))
+            converter = LLMJsonConverter()
+            if url:
+                json_str = converter.from_url(url, entity_name)
+            elif file_obj:
+                filename = file_obj.get("filename", "")
+                content_bytes = file_obj.get("content", b"")
+                content_str = content_bytes.decode("utf-8", errors="replace")
+                input_type = InputType.CSV if filename.lower().endswith(".csv") else InputType.TEXT
+                json_str = converter.transfer_to_json(content_str, entity_name, input_type)
+            elif content:
+                json_str = converter.transfer_to_json(content, entity_name, InputType.TEXT)
+            else:
+                return AdminResponse.json(
+                    {"error": "Не предоставлен файл или URL для обработки"},
+                    status_code=400,
+                )
+
+            # Parse JSON returned by LLM
+            parsed_data = json.loads(json_str)
+            count, redirect_url = self._apply_llm_data(entity_name, parsed_data, date_key=date_key)
+            logger.info("Successfully imported and staged %d items for entity '%s'", count, entity_name)
+
+            return AdminResponse.json({
+                "status": "ok",
+                "message": f"Успешно обработано: {count} элементов добавлены в черновик",
+                "redirect": redirect_url or default_redirect,
+                "count": count,
+            })
+        except Exception as e:
+            logger.error("Error during LLM import for entity '%s': %s", entity_name, e, exc_info=True)
+            return AdminResponse.json({"error": str(e)}, status_code=400)
+
+    def _apply_llm_data(self, entity_name: str, data: Any, date_key: Optional[str] = None) -> Tuple[int, str]:
+        """Apply parsed JSON data as staged modifications in the respective service."""
+        count = 0
+        redirect_target = ""
+
+        if entity_name == "participants":
+            raw_list = data.get("participants") if isinstance(data, dict) else data
+            if not isinstance(raw_list, list):
+                raw_list = [raw_list] if isinstance(raw_list, dict) else []
+
+            for item in raw_list:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name", "")).strip()
+                stand = str(item.get("stand", "")).strip()
+                link = str(item.get("link", "") or "").strip()
+                description = str(item.get("description", "") or "").strip()
+                if name and stand:
+                    self.participants_service.add_participant(
+                        name=name,
+                        stand=stand,
+                        link=link,
+                        description=description,
+                    )
+                    count += 1
+            redirect_target = "/participants"
+
+        elif entity_name == "recommendations":
+            raw_categories = (
+                data.get("recs") or data.get("recommendations")
+                if isinstance(data, dict)
+                else (data if isinstance(data, list) else [])
+            )
+            if isinstance(raw_categories, dict):
+                raw_categories = [raw_categories]
+
+            staged = self.recs_service.load_data()
+            current_recs = staged.setdefault("recs", [])
+
+            for cat in raw_categories:
+                if not isinstance(cat, dict):
+                    continue
+                rec_name = str(cat.get("rec") or cat.get("name") or "").strip()
+                if not rec_name:
+                    continue
+                emoji = str(cat.get("emoji") or "").strip()
+
+                # Find or create category
+                existing_cat = next(
+                    (c for c in current_recs if str(c.get("rec", "")).strip().lower() == rec_name.lower()),
+                    None,
+                )
+                if not existing_cat:
+                    existing_cat = {"rec": rec_name, "books": []}
+                    if emoji:
+                        existing_cat["emoji"] = emoji
+                    current_recs.append(existing_cat)
+                elif emoji and not existing_cat.get("emoji"):
+                    existing_cat["emoji"] = emoji
+
+                books_list = cat.get("books", [])
+                if isinstance(books_list, list):
+                    for b in books_list:
+                        if not isinstance(b, dict):
+                            continue
+                        title = str(b.get("title", "")).strip()
+                        if not title:
+                            continue
+                        desc = str(b.get("description", "") or "").strip()
+                        authors_raw = b.get("authors") or []
+                        if isinstance(authors_raw, str):
+                            authors = [a.strip() for a in authors_raw.split(",") if a.strip()]
+                        elif isinstance(authors_raw, list):
+                            authors = [str(a).strip() for a in authors_raw if str(a).strip()]
+                        else:
+                            authors = []
+
+                        sold_by_raw = b.get("soldBy") or b.get("sold_by") or []
+                        if isinstance(sold_by_raw, str):
+                            sold_by = [s.strip() for s in sold_by_raw.split(",") if s.strip()]
+                        elif isinstance(sold_by_raw, list):
+                            sold_by = [str(s).strip() for s in sold_by_raw if str(s).strip()]
+                        else:
+                            sold_by = []
+
+                        existing_cat.setdefault("books", []).append({
+                            "title": title,
+                            "description": desc,
+                            "authors": authors,
+                            "soldBy": sold_by,
+                        })
+                        count += 1
+
+            self.recs_service.save_data(staged)
+            redirect_target = "/recs"
+
+        elif entity_name == "timetables":
+            if isinstance(data, dict):
+                if "timetables" in data or "timetable" in data:
+                    raw_days = data.get("timetables") or data.get("timetable")
+                    days = raw_days if isinstance(raw_days, list) else [raw_days]
+                elif "events" in data or "date" in data:
+                    days = [data]
+                else:
+                    days = [data]
+            elif isinstance(data, list):
+                if data and all(isinstance(x, dict) and "title" in x and "events" not in x for x in data):
+                    days = [{"date": date_key or "today", "events": data}]
+                else:
+                    days = data
+            else:
+                days = []
+
+            last_date_key = date_key
+            for day_item in days:
+                if not isinstance(day_item, dict):
+                    continue
+                day_date_val = str(day_item.get("date") or date_key or "").strip()
+                if not day_date_val:
+                    continue
+                try:
+                    clean_date = AdminTimetableService.validate_and_normalize_date(day_date_val)
+                except Exception:
+                    if date_key:
+                        try:
+                            clean_date = AdminTimetableService.validate_and_normalize_date(date_key)
+                        except Exception:
+                            continue
+                    else:
+                        continue
+
+                last_date_key = clean_date
+                existing_day = self.timetable_service.get_day_dict(clean_date)
+                if existing_day is None:
+                    existing_day = {"date": clean_date, "events": []}
+
+                events_list = day_item.get("events", [])
+                if isinstance(events_list, list):
+                    for ev in events_list:
+                        if not isinstance(ev, dict):
+                            continue
+                        title = str(ev.get("title", "")).strip()
+                        if not title:
+                            continue
+                        time_val = str(ev.get("time", "")).strip() or "10:00"
+                        try:
+                            clean_time = AdminTimetableService.validate_time(time_val)
+                        except Exception:
+                            m = re.search(r"(\d{1,2}:\d{2})", time_val)
+                            clean_time = AdminTimetableService.validate_time(m.group(1)) if m else "10:00"
+
+                        location = str(ev.get("location", "") or "Главная сцена").strip()
+                        organizer = str(ev.get("organizer", "") or "").strip()
+                        desc = str(ev.get("description", "") or "").strip()
+                        is_children = bool(ev.get("is_children_activity", False))
+
+                        parts_raw = ev.get("participants") or []
+                        if isinstance(parts_raw, str):
+                            participants = [p.strip() for p in parts_raw.split(",") if p.strip()]
+                        elif isinstance(parts_raw, list):
+                            participants = [str(p).strip() for p in parts_raw if str(p).strip()]
+                        else:
+                            participants = []
+
+                        existing_day.setdefault("events", []).append({
+                            "time": clean_time,
+                            "title": title,
+                            "location": location,
+                            "description": desc,
+                            "participants": participants,
+                            "organizer": organizer,
+                            "is_children_activity": is_children,
+                        })
+                        count += 1
+
+                self.timetable_service.save_day_dict(clean_date, existing_day)
+
+            if last_date_key and date_key:
+                redirect_target = f"/timetables/{last_date_key}"
+            else:
+                redirect_target = f"/timetables/{last_date_key}" if last_date_key else "/timetables"
+
+        return count, redirect_target

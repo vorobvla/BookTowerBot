@@ -2,6 +2,10 @@
     <a href="/timetables" style="color: var(--primary); text-decoration: none; font-weight: 500;">← Назад к списку дней</a>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
         <h2>📅 События на {{ display_date }}</h2>
+        <button type="button" class="btn btn-secondary" onclick="openLlmImportModal('timetables', '{{ date_key }}')" style="height: 38px; display: inline-flex; align-items: center; gap: 6px;">
+            <span>📥</span>
+            <span>Сгенерировать из внешнего источника</span>
+        </button>
     </div>
 </div>
 
