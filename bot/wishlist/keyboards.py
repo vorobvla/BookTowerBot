@@ -5,14 +5,20 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.content import (
     BTN_WISHLIST_ADD,
+    BTN_WISHLIST_ADD_ISBN,
+    BTN_WISHLIST_CANCEL,
+    BTN_WISHLIST_CONFIRM,
     BTN_WISHLIST_EDIT,
     BTN_WISHLIST_GET,
     BTN_WISHLIST_REMOVE,
     CB_WISHLIST,
     CB_WISHLIST_ADD,
+    CB_WISHLIST_ADD_ISBN,
     CB_WISHLIST_EDIT,
     CB_WISHLIST_GET,
     CB_WISHLIST_REMOVE,
+    CB_WL_CANCEL_ISBN,
+    CB_WL_CONFIRM_ISBN,
 )
 from bot.wishlist.book import Book
 
@@ -33,6 +39,13 @@ WISHLIST_CALLBACK_MAP = {
     BTN_WISHLIST_ADD: CB_WISHLIST_ADD,
     "Add Book": CB_WISHLIST_ADD,
     "Добавить книгу": CB_WISHLIST_ADD,
+    BTN_WISHLIST_ADD_ISBN: CB_WISHLIST_ADD_ISBN,
+    "By ISBN": CB_WISHLIST_ADD_ISBN,
+    "by isbn": CB_WISHLIST_ADD_ISBN,
+    "По ISBN": CB_WISHLIST_ADD_ISBN,
+    "по isbn": CB_WISHLIST_ADD_ISBN,
+    BTN_WISHLIST_CONFIRM: CB_WL_CONFIRM_ISBN,
+    BTN_WISHLIST_CANCEL: CB_WL_CANCEL_ISBN,
     BTN_WISHLIST_GET: CB_WISHLIST_GET,
     "GetList": CB_WISHLIST_GET,
     "Get List": CB_WISHLIST_GET,
@@ -68,6 +81,61 @@ def get_wishlist_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text=BTN_WISHLIST_REMOVE,
                 callback_data=CB_WISHLIST_REMOVE,
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_wishlist_add_inline_keyboard() -> InlineKeyboardMarkup:
+    """Generate inline keyboard for the add book menu with 'By ISBN' option."""
+    keyboard: List[List[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=BTN_WISHLIST_ADD_ISBN,
+                callback_data=CB_WISHLIST_ADD_ISBN,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="« Назад в вишлист",
+                callback_data=CB_WISHLIST,
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_isbn_input_inline_keyboard() -> InlineKeyboardMarkup:
+    """Generate inline keyboard for ISBN/barcode input view."""
+    keyboard: List[List[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="« Назад к добавлению книги",
+                callback_data=CB_WISHLIST_ADD,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="« Меню вишлиста",
+                callback_data=CB_WISHLIST,
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_isbn_confirm_inline_keyboard() -> InlineKeyboardMarkup:
+    """Generate inline keyboard for confirming book addition found by ISBN."""
+    keyboard: List[List[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=BTN_WISHLIST_CONFIRM,
+                callback_data=CB_WL_CONFIRM_ISBN,
+            ),
+            InlineKeyboardButton(
+                text=BTN_WISHLIST_CANCEL,
+                callback_data=CB_WL_CANCEL_ISBN,
             ),
         ],
     ]

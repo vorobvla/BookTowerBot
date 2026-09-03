@@ -90,14 +90,36 @@ PARTICIPANTS_MESSAGE = (
 )
 
 WISHLIST_MESSAGE = (
-    "📝 *Вишлист (Wishlist)*\n\n"
+    "📝 *Вишлист*\n\n"
     "Здесь вы можете сохранять книги, которые хотите купить или найти на ярмарке.\n\n"
     "Пожалуйста, выберите действие:"
 )
 
 WISHLIST_ADD_PROMPT = (
     "✍️ *Добавление книги в вишлист*\n\n"
-    "Пожалуйста, введите название книги сообщением:"
+    "Пожалуйста, введите название книги сообщением или нажмите *«По ISBN»*, "
+    "чтобы найти книгу по ISBN или штрих-коду:"
+)
+
+WISHLIST_ISBN_PROMPT = (
+    "🔢 *Добавление книги по ISBN*\n\n"
+    "Пожалуйста, отправьте ISBN книги (10 или 13 цифр) сообщением или пришлите фотографию штрих-кода:"
+)
+
+WISHLIST_BARCODE_NOT_FOUND_MESSAGE = (
+    "⚠️ *Не удалось распознать штрих-код на изображении.*\n\n"
+    "Пожалуйста, убедитесь, что штрих-код четко виден и попробуйте отправить фото еще раз, "
+    "либо введите ISBN сообщением:"
+)
+
+WISHLIST_ISBN_NOT_FOUND_MESSAGE = (
+    "❌ *Книга по указанному ISBN не найдена.*\n\n"
+    "Вы можете попробовать еще раз или отправить название книги сообщением для добавления вручную:"
+)
+
+WISHLIST_ISBN_INVALID_MESSAGE = (
+    "⚠️ *Некорректный формат ISBN.*\n\n"
+    "Пожалуйста, отправьте корректный ISBN (10 или 13 цифр) сообщением или пришлите фотографию штрих-кода:"
 )
 
 WISHLIST_EDIT_PROMPT = (
@@ -127,10 +149,13 @@ BTN_CHILDREN_ACTIVITY = "🎈 Детская программа"
 BTN_RECOMMENDATIONS = "📚 Рекомендации"
 BTN_PARTICIPANTS = "👥 Участники"
 BTN_WISHLIST = "📝 Вишлист"
+BTN_WISHLIST_ADD_ISBN = "🔢 По ISBN"
+BTN_WISHLIST_CONFIRM = "✅ Добавить в вишлист"
+BTN_WISHLIST_CANCEL = "❌ Отмена"
 BTN_WISHLIST_ADD = "➕ Добавить книгу"
-BTN_WISHLIST_GET = "📋 Мой список"
-BTN_WISHLIST_EDIT = "✏️ Изменить"
-BTN_WISHLIST_REMOVE = "🗑 Удалить"
+BTN_WISHLIST_GET = "🧾 Весь список"
+BTN_WISHLIST_EDIT = "✏️ Изменить книгу"
+BTN_WISHLIST_REMOVE = "➖ Удалить книгу"
 BTN_SHOW_PARTICIPANTS = "📍 Информация о стендах участников"
 BTN_SHOW_STANDS = "📍 Информация о стендах"
 BTN_SHOW_STANDS_INFO = "📍 Информация о стендах"
@@ -145,6 +170,9 @@ CB_RECOMMENDATIONS = "action_recommendations"
 CB_PARTICIPANTS = "action_participants"
 CB_WISHLIST = "action_wishlist"
 CB_WISHLIST_ADD = "wishlist_add"
+CB_WISHLIST_ADD_ISBN = "wl_add_isbn"
+CB_WL_CONFIRM_ISBN = "wl_conf_isbn"
+CB_WL_CANCEL_ISBN = "wl_canc_isbn"
 CB_WISHLIST_GET = "wishlist_get"
 CB_WISHLIST_EDIT = "wishlist_edit"
 CB_WISHLIST_REMOVE = "wishlist_remove"
@@ -169,6 +197,14 @@ BUTTON_CALLBACK_MAP = {
     "Add Book": CB_WISHLIST_ADD,
     "Add book": CB_WISHLIST_ADD,
     "Добавить книгу": CB_WISHLIST_ADD,
+    BTN_WISHLIST_ADD_ISBN: CB_WISHLIST_ADD_ISBN,
+    "By ISBN": CB_WISHLIST_ADD_ISBN,
+    "by isbn": CB_WISHLIST_ADD_ISBN,
+    "По ISBN": CB_WISHLIST_ADD_ISBN,
+    "по isbn": CB_WISHLIST_ADD_ISBN,
+    "ISBN": CB_WISHLIST_ADD_ISBN,
+    BTN_WISHLIST_CONFIRM: CB_WL_CONFIRM_ISBN,
+    BTN_WISHLIST_CANCEL: CB_WL_CANCEL_ISBN,
     BTN_WISHLIST_GET: CB_WISHLIST_GET,
     "GetList": CB_WISHLIST_GET,
     "Get List": CB_WISHLIST_GET,

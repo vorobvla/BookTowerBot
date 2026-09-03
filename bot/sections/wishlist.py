@@ -10,6 +10,7 @@ from bot.content import (
     WISHLIST_ADD_PROMPT,
     WISHLIST_EDIT_PROMPT,
     WISHLIST_EMPTY_MESSAGE,
+    WISHLIST_ISBN_PROMPT,
     WISHLIST_MESSAGE,
     WISHLIST_REMOVE_PROMPT,
 )
@@ -18,13 +19,18 @@ from bot.sections.base import BaseSection
 from bot.wishlist.keyboards import (
     BOOK_ATTRIBUTES,
     CB_WISHLIST_ADD,
+    CB_WISHLIST_ADD_ISBN,
     CB_WISHLIST_EDIT,
     CB_WISHLIST_GET,
     CB_WISHLIST_REMOVE,
+    CB_WL_CANCEL_ISBN,
+    CB_WL_CONFIRM_ISBN,
     CB_WL_EDIT_ATTR_PREFIX,
     CB_WL_EDIT_BOOK_PREFIX,
     CB_WL_REMOVE_BOOK_PREFIX,
     get_book_attributes_inline_keyboard,
+    get_isbn_input_inline_keyboard,
+    get_wishlist_add_inline_keyboard,
     get_wishlist_books_inline_keyboard,
     get_wishlist_inline_keyboard,
 )
@@ -35,7 +41,7 @@ class Wishlist(BaseSection):
     """Wishlist section allowing users to store and view their book wishlists."""
 
     name = "wishlist"
-    commands = ["wishlist", "getlist", "addbook", "wishlist_list", "editbook", "removebook"]
+    commands = ["wishlist", "getlist", "addbook", "wishlist_list", "editbook", "removebook", "isbn", "addisbn"]
     button_text = BTN_WISHLIST
     callback_data = CB_WISHLIST
     aliases = {
@@ -47,6 +53,10 @@ class Wishlist(BaseSection):
         "add book",
         "/addbook",
         "добавить книгу",
+        "by isbn",
+        "/isbn",
+        "/addisbn",
+        "по isbn",
         "getlist",
         "get list",
         "/getlist",
@@ -76,6 +86,9 @@ class Wishlist(BaseSection):
         return (
             callback_data == self.callback_data
             or callback_data == CB_WISHLIST_ADD
+            or callback_data == CB_WISHLIST_ADD_ISBN
+            or callback_data == CB_WL_CONFIRM_ISBN
+            or callback_data == CB_WL_CANCEL_ISBN
             or callback_data == CB_WISHLIST_GET
             or callback_data == CB_WISHLIST_EDIT
             or callback_data == CB_WISHLIST_REMOVE
@@ -109,8 +122,42 @@ class Wishlist(BaseSection):
         if data == CB_WISHLIST_ADD:
             if context is not None and hasattr(context, "user_data") and context.user_data is not None:
                 context.user_data["awaiting_wishlist_title"] = True
+                context.user_data.pop("awaiting_wishlist_isbn", None)
+                context.user_data.pop("pending_isbn_book", None)
                 context.user_data.pop("awaiting_wishlist_edit", None)
-            await self._edit_or_reply(query, WISHLIST_ADD_PROMPT, get_wishlist_inline_keyboard())
+            await self._edit_or_reply(query, WISHLIST_ADD_PROMPT, get_wishlist_add_inline_keyboard())
+
+        elif data == CB_WISHLIST_ADD_ISBN:
+            if context is not None and hasattr(context, "user_data") and context.user_data is not None:
+                context.user_data["awaiting_wishlist_isbn"] = True
+                context.user_data.pop("awaiting_wishlist_title", None)
+                context.user_data.pop("pending_isbn_book", None)
+                context.user_data.pop("awaiting_wishlist_edit", None)
+            await self._edit_or_reply(query, WISHLIST_ISBN_PROMPT, get_isbn_input_inline_keyboard())
+
+        elif data == CB_WL_CONFIRM_ISBN:
+            pending_book = None
+            if context is not None and hasattr(context, "user_data") and context.user_data is not None:
+                pending_book = context.user_data.pop("pending_isbn_book", None)
+                context.user_data.pop("awaiting_wishlist_isbn", None)
+                context.user_data.pop("awaiting_wishlist_title", None)
+
+            if pending_book:
+                added = self.service.add_book(user_id, book=pending_book)
+                msg = (
+                    f"✅ Книга *«{added.title}»* успешно добавлена в ваш вишлист!\n\n"
+                    f"{added.format_entry()}"
+                )
+                await self._edit_or_reply(query, msg, get_wishlist_inline_keyboard())
+            else:
+                await self._edit_or_reply(query, WISHLIST_MESSAGE, get_wishlist_inline_keyboard())
+
+        elif data == CB_WL_CANCEL_ISBN:
+            if context is not None and hasattr(context, "user_data") and context.user_data is not None:
+                context.user_data.pop("pending_isbn_book", None)
+                context.user_data.pop("awaiting_wishlist_isbn", None)
+                context.user_data.pop("awaiting_wishlist_title", None)
+            await self._edit_or_reply(query, "❌ Добавление книги отменено.", get_wishlist_inline_keyboard())
 
         elif data == CB_WISHLIST_GET:
             text = self.service.format_wishlist_text(user_id)
@@ -211,12 +258,12 @@ class Wishlist(BaseSection):
                 remaining_books = self.service.get_wishlist(user_id)
                 if remaining_books:
                     text = (
-                        f"🗑 Книга *«{title}»* удалена из вашего вишлиста.\n\n"
+                        f"- Книга *«{title}»* удалена из вашего вишлиста.\n\n"
                         f"Выберите следующую книгу для удаления или вернитесь в меню:"
                     )
                     markup = get_wishlist_books_inline_keyboard(remaining_books, action="remove")
                 else:
-                    text = f"🗑 Книга *«{title}»* удалена из вашего вишлиста.\n\nВаш вишлист теперь пуст."
+                    text = f"- Книга *«{title}»* удалена из вашего вишлиста.\n\nВаш вишлист теперь пуст."
                     markup = get_wishlist_inline_keyboard()
                 await self._edit_or_reply(query, text, markup)
             else:
@@ -244,11 +291,25 @@ class Wishlist(BaseSection):
             if cmd in ["/addbook", "add book", "добавить книгу"]:
                 if context is not None and hasattr(context, "user_data") and context.user_data is not None:
                     context.user_data["awaiting_wishlist_title"] = True
+                    context.user_data.pop("awaiting_wishlist_isbn", None)
+                    context.user_data.pop("pending_isbn_book", None)
                     context.user_data.pop("awaiting_wishlist_edit", None)
                 await update.message.reply_text(
                     text=WISHLIST_ADD_PROMPT,
                     parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=self.get_reply_markup(inline=True),
+                    reply_markup=get_wishlist_add_inline_keyboard(),
+                )
+                return
+            elif cmd in ["/isbn", "/addisbn", "by isbn", "по isbn", "isbn"]:
+                if context is not None and hasattr(context, "user_data") and context.user_data is not None:
+                    context.user_data["awaiting_wishlist_isbn"] = True
+                    context.user_data.pop("awaiting_wishlist_title", None)
+                    context.user_data.pop("pending_isbn_book", None)
+                    context.user_data.pop("awaiting_wishlist_edit", None)
+                await update.message.reply_text(
+                    text=WISHLIST_ISBN_PROMPT,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_isbn_input_inline_keyboard(),
                 )
                 return
             elif cmd in ["/getlist", "getlist", "get list", "мой список", "/wishlist_list"]:

@@ -16,6 +16,7 @@ from bot.handlers import (
     help_handler,
     map_handler,
     participants_handler,
+    photo_message_handler,
     recommendations_handler,
     start_handler,
     text_message_handler,
@@ -36,10 +37,13 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(CommandHandler(["children", "children_activity", "kids"], children_activity_handler))
     app.add_handler(CommandHandler(["recommendations", "recs"], recommendations_handler))
     app.add_handler(CommandHandler(["participants", "stands", "vendors", "part"], participants_handler))
-    app.add_handler(CommandHandler(["wishlist", "getlist", "addbook", "editbook", "removebook", "deletebook"], wishlist_handler))
+    app.add_handler(CommandHandler(["wishlist", "getlist", "addbook", "editbook", "removebook", "deletebook", "isbn", "addisbn"], wishlist_handler))
 
     # Callback query handler for inline keyboard buttons
     app.add_handler(CallbackQueryHandler(button_callback_handler))
+
+    # Photo message handler for barcode scanning
+    app.add_handler(MessageHandler(filters.PHOTO, photo_message_handler))
 
     # Text message handler for reply keyboard buttons and regular text
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))

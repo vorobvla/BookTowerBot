@@ -1,33 +1,47 @@
 """Tests for user wishlist database, service, keyboards, section, and bot handlers."""
 
+import io
 import os
 import sqlite3
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
+from PIL import Image
 import pytest
 from telegram import Update
 from telegram.constants import ParseMode
+import zxingcpp
 
 from bot.content import (
     BTN_WISHLIST,
     BTN_WISHLIST_ADD,
+    BTN_WISHLIST_ADD_ISBN,
+    BTN_WISHLIST_CANCEL,
+    BTN_WISHLIST_CONFIRM,
     BTN_WISHLIST_EDIT,
     BTN_WISHLIST_GET,
     BTN_WISHLIST_REMOVE,
     BUTTON_CALLBACK_MAP,
     CB_WISHLIST,
     CB_WISHLIST_ADD,
+    CB_WISHLIST_ADD_ISBN,
     CB_WISHLIST_EDIT,
     CB_WISHLIST_GET,
     CB_WISHLIST_REMOVE,
+    CB_WL_CANCEL_ISBN,
+    CB_WL_CONFIRM_ISBN,
     WISHLIST_ADD_PROMPT,
+    WISHLIST_BARCODE_NOT_FOUND_MESSAGE,
     WISHLIST_EDIT_PROMPT,
     WISHLIST_EMPTY_MESSAGE,
+    WISHLIST_ISBN_INVALID_MESSAGE,
+    WISHLIST_ISBN_NOT_FOUND_MESSAGE,
+    WISHLIST_ISBN_PROMPT,
     WISHLIST_MESSAGE,
     WISHLIST_REMOVE_PROMPT,
 )
 from bot.handlers import (
     button_callback_handler,
+    photo_message_handler,
     text_message_handler,
     wishlist_handler,
     wishlist_section,
@@ -38,6 +52,7 @@ from bot.keyboards import (
 )
 from bot.sections.wishlist import Wishlist
 from bot.wishlist.book import Book
+from bot.wishlist.isbn import clean_isbn, decode_barcode_from_image, lookup_book_by_isbn
 from bot.wishlist.keyboards import (
     BOOK_ATTRIBUTES,
     CB_WL_EDIT_ATTR_PREFIX,
@@ -45,6 +60,9 @@ from bot.wishlist.keyboards import (
     CB_WL_REMOVE_BOOK_PREFIX,
     WISHLIST_CALLBACK_MAP,
     get_book_attributes_inline_keyboard,
+    get_isbn_confirm_inline_keyboard,
+    get_isbn_input_inline_keyboard,
+    get_wishlist_add_inline_keyboard,
     get_wishlist_books_inline_keyboard,
     get_wishlist_inline_keyboard,
 )
@@ -527,3 +545,344 @@ async def test_wishlist_edit_and_remove_handler_flow():
     await text_message_handler(update_remove_btn, context)
     update_remove_btn.effective_message.reply_text.assert_awaited_once()
     assert update_remove_btn.effective_message.reply_text.call_args.kwargs["text"] == WISHLIST_REMOVE_PROMPT
+
+
+# ==============================================================================
+# ISBN, Barcode, and Flow Tests
+# ==============================================================================
+
+def test_clean_isbn():
+    assert clean_isbn("978-0-14-044913-6") == "9780140449136"
+    assert clean_isbn("978 0 14 044913 6") == "9780140449136"
+    assert clean_isbn("0-14-044913-2") == "0140449132"
+    assert clean_isbn("043942089X") == "043942089X"
+    assert clean_isbn("ISBN 978-0-14-044913-6 (pbk.)") == "9780140449136"
+    assert clean_isbn("") is None
+    assert clean_isbn("not-an-isbn") is None
+    assert clean_isbn(None) is None
+
+
+def test_decode_barcode_from_image():
+    # 1. Create a real EAN-13 barcode image
+    bc = zxingcpp.create_barcode("9780140449136", zxingcpp.BarcodeFormat.EAN13)
+    img = zxingcpp.write_barcode_to_image(bc)
+    
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        # Convert zxingcpp image to PIL
+        pil_img = Image.frombuffer("L", (img.shape[1], img.shape[0]), bytes(img))
+        pil_img.save(tmp_path, format="PNG")
+        
+        decoded = decode_barcode_from_image(tmp_path)
+        assert decoded == "9780140449136"
+        
+        # Test bytes
+        with open(tmp_path, "rb") as f:
+            raw_bytes = f.read()
+        assert decode_barcode_from_image(raw_bytes) == "9780140449136"
+        
+        # Test PIL Image
+        assert decode_barcode_from_image(pil_img) == "9780140449136"
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    # 2. Blank image -> None
+    blank_img = Image.new("RGB", (200, 200), color="white")
+    assert decode_barcode_from_image(blank_img) is None
+
+    # 3. Invalid source -> None
+    assert decode_barcode_from_image("non_existent_path.png") is None
+    assert decode_barcode_from_image(b"invalid data") is None
+
+
+def test_lookup_book_by_isbn_open_library():
+    mock_meta = {
+        "ISBN-13": "9780140449136",
+        "Title": "Crime and punishment",
+        "Authors": ["Fyodor Dostoyevsky"],
+        "Publisher": "Penguin",
+        "Year": "2003",
+        "Language": "",
+    }
+    with patch("isbnlib.meta", return_value=mock_meta):
+        book = lookup_book_by_isbn("978-0-14-044913-6")
+        assert book is not None
+        assert book.title == "Crime and punishment"
+        assert book.authors == "Fyodor Dostoyevsky"
+        assert book.publishing == "Penguin"
+        assert book.year == 2003
+        assert book.isbn == "9780140449136"
+
+
+def test_lookup_book_by_isbn_fallback():
+    mock_meta_goob = {
+        "ISBN-13": "9780132350884",
+        "Title": "Clean Code",
+        "Authors": ["Robert C. Martin"],
+        "Publisher": "Prentice Hall",
+        "Year": "2008",
+    }
+
+    def side_effect(isbn, service=None):
+        if service == "openl":
+            return {}
+        if service == "goob":
+            return mock_meta_goob
+        return {}
+
+    with patch("isbnlib.meta", side_effect=side_effect):
+        book = lookup_book_by_isbn("9780132350884")
+        assert book is not None
+        assert book.title == "Clean Code"
+        assert book.authors == "Robert C. Martin"
+        assert book.publishing == "Prentice Hall"
+        assert book.year == 2008
+        assert book.isbn == "9780132350884"
+
+
+def test_lookup_book_by_isbn_not_found():
+    with patch("isbnlib.meta", return_value={}):
+        assert lookup_book_by_isbn("9780000000000") is None
+    assert lookup_book_by_isbn("invalid") is None
+
+
+def test_isbn_keyboards():
+    add_kb = get_wishlist_add_inline_keyboard()
+    add_cbs = [b.callback_data for row in add_kb.inline_keyboard for b in row]
+    assert CB_WISHLIST_ADD_ISBN in add_cbs
+    assert CB_WISHLIST in add_cbs
+
+    input_kb = get_isbn_input_inline_keyboard()
+    input_cbs = [b.callback_data for row in input_kb.inline_keyboard for b in row]
+    assert CB_WISHLIST_ADD in input_cbs
+    assert CB_WISHLIST in input_cbs
+
+    confirm_kb = get_isbn_confirm_inline_keyboard()
+    confirm_cbs = [b.callback_data for row in confirm_kb.inline_keyboard for b in row]
+    assert CB_WL_CONFIRM_ISBN in confirm_cbs
+    assert CB_WL_CANCEL_ISBN in confirm_cbs
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_flow_title_when_untapped(temp_service):
+    """If 'By ISBN' is NOT tapped, text message with title is accepted as before."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {}
+
+    # Step 1: User triggers Add Book
+    query = MagicMock()
+    query.data = CB_WISHLIST_ADD
+    query.from_user = MagicMock(id=111222)
+    query.edit_message_text = AsyncMock()
+    await wishlist_section.handle_callback_query(query, context=context)
+
+    assert context.user_data.get("awaiting_wishlist_title") is True
+    assert context.user_data.get("awaiting_wishlist_isbn") is None
+
+    # Step 2: User types title directly
+    update_text = MagicMock(spec=Update)
+    update_text.effective_message = AsyncMock(text="Dune")
+    update_text.effective_user = MagicMock(id=111222)
+    await text_message_handler(update_text, context)
+
+    assert context.user_data.get("awaiting_wishlist_title") is False
+    user_id = get_user_id(111222)
+    books = temp_service.get_wishlist(user_id)
+    assert len(books) == 1
+    assert books[0].title == "Dune"
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_flow_by_isbn_text_success_and_confirm(temp_service):
+    """If 'By ISBN' is tapped and valid ISBN is sent, bot finds book and adds upon confirmation."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {}
+
+    # Step 1: Tap "By ISBN"
+    query = MagicMock()
+    query.data = CB_WISHLIST_ADD_ISBN
+    query.from_user = MagicMock(id=555666)
+    query.edit_message_text = AsyncMock()
+    await wishlist_section.handle_callback_query(query, context=context)
+
+    assert context.user_data.get("awaiting_wishlist_isbn") is True
+    assert context.user_data.get("awaiting_wishlist_title") is None
+
+    # Step 2: Send ISBN text
+    found_book = Book(title="1984", authors="George Orwell", publishing="Secker & Warburg", isbn="9780451524935", year=1949)
+    with patch("bot.handlers.lookup_book_by_isbn", return_value=found_book):
+        update_isbn = MagicMock(spec=Update)
+        update_isbn.effective_message = AsyncMock(text="978-0451524935")
+        update_isbn.effective_user = MagicMock(id=555666)
+        await text_message_handler(update_isbn, context)
+
+    assert context.user_data.get("pending_isbn_book") == found_book
+    assert context.user_data.get("awaiting_wishlist_isbn") is None
+    # Verify book is NOT added to DB yet
+    user_id = get_user_id(555666)
+    assert len(temp_service.get_wishlist(user_id)) == 0
+    # Verify confirmation markup
+    reply_markup = update_isbn.effective_message.reply_text.call_args.kwargs["reply_markup"]
+    confirm_cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert CB_WL_CONFIRM_ISBN in confirm_cbs
+
+    # Step 3: User confirms addition
+    query_confirm = MagicMock()
+    query_confirm.data = CB_WL_CONFIRM_ISBN
+    query_confirm.from_user = MagicMock(id=555666)
+    query_confirm.edit_message_text = AsyncMock()
+    await wishlist_section.handle_callback_query(query_confirm, context=context)
+
+    # Now it is added to the database
+    books = temp_service.get_wishlist(user_id)
+    assert len(books) == 1
+    assert books[0].title == "1984"
+    assert books[0].authors == "George Orwell"
+    assert books[0].year == 1949
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_flow_by_isbn_text_cancel(temp_service):
+    """If user cancels confirmation, book is not added."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    found_book = Book(title="Fahrenheit 451", authors="Ray Bradbury", isbn="9781451673319")
+    context.user_data = {"pending_isbn_book": found_book}
+
+    query_cancel = MagicMock()
+    query_cancel.data = CB_WL_CANCEL_ISBN
+    query_cancel.from_user = MagicMock(id=777888)
+    query_cancel.edit_message_text = AsyncMock()
+    await wishlist_section.handle_callback_query(query_cancel, context=context)
+
+    user_id = get_user_id(777888)
+    assert len(temp_service.get_wishlist(user_id)) == 0
+    assert context.user_data.get("pending_isbn_book") is None
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_flow_by_isbn_not_found(temp_service):
+    """If book is not found by ISBN, user is informed and returns to add book menu."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    with patch("bot.handlers.lookup_book_by_isbn", return_value=None):
+        update_isbn = MagicMock(spec=Update)
+        update_isbn.effective_message = AsyncMock(text="9780000000002")
+        update_isbn.effective_user = MagicMock(id=999000)
+        await text_message_handler(update_isbn, context)
+
+    assert context.user_data.get("awaiting_wishlist_isbn") is None
+    assert context.user_data.get("awaiting_wishlist_title") is True
+    reply_text = update_isbn.effective_message.reply_text.call_args.kwargs["text"]
+    assert "не найдена" in reply_text
+    reply_markup = update_isbn.effective_message.reply_text.call_args.kwargs["reply_markup"]
+    add_cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert CB_WISHLIST_ADD_ISBN in add_cbs
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_flow_by_isbn_invalid_text(temp_service):
+    """If invalid text is sent during ISBN awaiting, user is warned and stays in ISBN input."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    update_invalid = MagicMock(spec=Update)
+    update_invalid.effective_message = AsyncMock(text="hello_world_not_isbn")
+    update_invalid.effective_user = MagicMock(id=999000)
+    await text_message_handler(update_invalid, context)
+
+    assert context.user_data.get("awaiting_wishlist_isbn") is True
+    reply_text = update_invalid.effective_message.reply_text.call_args.kwargs["text"]
+    assert reply_text == WISHLIST_ISBN_INVALID_MESSAGE
+    reply_markup = update_invalid.effective_message.reply_text.call_args.kwargs["reply_markup"]
+    cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert CB_WISHLIST_ADD in cbs
+
+
+@pytest.mark.asyncio
+async def test_wishlist_photo_barcode_success(temp_service):
+    """Photo with barcode reads barcode, cleans cache file, and presents confirmation."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    # Mock photo file download
+    temp_downloaded_path = None
+
+    async def fake_download(path):
+        nonlocal temp_downloaded_path
+        temp_downloaded_path = path
+        # Write some dummy bytes
+        with open(path, "wb") as f:
+            f.write(b"fake image data")
+
+    mock_file = MagicMock()
+    mock_file.download_to_drive = AsyncMock(side_effect=fake_download)
+    context.bot.get_file = AsyncMock(return_value=mock_file)
+
+    found_book = Book(title="The Hobbit", authors="J.R.R. Tolkien", isbn="9780261102217")
+
+    with patch("bot.handlers.decode_barcode_from_image", return_value="9780261102217"), \
+         patch("bot.handlers.lookup_book_by_isbn", return_value=found_book):
+        update_photo = MagicMock(spec=Update)
+        photo_mock = MagicMock(file_id="photo_123")
+        update_photo.effective_message = AsyncMock(photo=[photo_mock])
+        update_photo.effective_user = MagicMock(id=123123)
+        await photo_message_handler(update_photo, context)
+
+    # Verify temp file was deleted from cache
+    assert temp_downloaded_path is not None
+    assert not os.path.exists(temp_downloaded_path)
+
+    # Verify pending book set and confirmation asked
+    assert context.user_data.get("pending_isbn_book") == found_book
+    assert "The Hobbit" in update_photo.effective_message.reply_text.call_args.kwargs["text"]
+    reply_markup = update_photo.effective_message.reply_text.call_args.kwargs["reply_markup"]
+    confirm_cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert CB_WL_CONFIRM_ISBN in confirm_cbs
+
+
+@pytest.mark.asyncio
+async def test_wishlist_photo_barcode_not_detected(temp_service):
+    """Photo without barcode warns user and stays in By ISBN input, cleaning cache file."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    temp_downloaded_path = None
+
+    async def fake_download(path):
+        nonlocal temp_downloaded_path
+        temp_downloaded_path = path
+        with open(path, "wb") as f:
+            f.write(b"unreadable image data")
+
+    mock_file = MagicMock()
+    mock_file.download_to_drive = AsyncMock(side_effect=fake_download)
+    context.bot.get_file = AsyncMock(return_value=mock_file)
+
+    with patch("bot.handlers.decode_barcode_from_image", return_value=None):
+        update_photo = MagicMock(spec=Update)
+        photo_mock = MagicMock(file_id="photo_456")
+        update_photo.effective_message = AsyncMock(photo=[photo_mock])
+        update_photo.effective_user = MagicMock(id=123123)
+        await photo_message_handler(update_photo, context)
+
+    # Verify temp file deleted
+    assert temp_downloaded_path is not None
+    assert not os.path.exists(temp_downloaded_path)
+
+    # Verify warning and returned to ISBN input
+    assert context.user_data.get("awaiting_wishlist_isbn") is True
+    assert update_photo.effective_message.reply_text.call_args.kwargs["text"] == WISHLIST_BARCODE_NOT_FOUND_MESSAGE
+    reply_markup = update_photo.effective_message.reply_text.call_args.kwargs["reply_markup"]
+    cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert CB_WISHLIST_ADD in cbs

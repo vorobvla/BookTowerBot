@@ -2,6 +2,8 @@
 
 import inspect
 import logging
+import os
+import tempfile
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -9,8 +11,12 @@ from telegram.ext import ContextTypes
 from bot.content import (
     UNKNOWN_COMMAND_MESSAGE,
     WISHLIST_ADD_PROMPT,
+    WISHLIST_BARCODE_NOT_FOUND_MESSAGE,
     WISHLIST_EDIT_PROMPT,
     WISHLIST_EMPTY_MESSAGE,
+    WISHLIST_ISBN_INVALID_MESSAGE,
+    WISHLIST_ISBN_NOT_FOUND_MESSAGE,
+    WISHLIST_ISBN_PROMPT,
     WISHLIST_REMOVE_PROMPT,
 )
 from bot.keyboards import get_main_reply_keyboard
@@ -25,9 +31,13 @@ from bot.sections import (
     Wishlist,
     default_registry,
 )
+from bot.wishlist.isbn import clean_isbn, decode_barcode_from_image, lookup_book_by_isbn
 from bot.wishlist.keyboards import (
     BOOK_ATTRIBUTES,
     get_book_attributes_inline_keyboard,
+    get_isbn_confirm_inline_keyboard,
+    get_isbn_input_inline_keyboard,
+    get_wishlist_add_inline_keyboard,
     get_wishlist_books_inline_keyboard,
 )
 from bot.wishlist.service import get_user_id
@@ -175,6 +185,45 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
             return
 
+    # Check if we are awaiting a wishlist book ISBN
+    is_awaiting_isbn = False
+    if context is not None and hasattr(context, "user_data") and isinstance(context.user_data, dict):
+        is_awaiting_isbn = bool(context.user_data.get("awaiting_wishlist_isbn"))
+
+    if is_awaiting_isbn:
+        if text.startswith("/"):
+            context.user_data["awaiting_wishlist_isbn"] = False
+        else:
+            cleaned_isbn = clean_isbn(text)
+            if cleaned_isbn:
+                book = lookup_book_by_isbn(cleaned_isbn)
+                if book:
+                    context.user_data["pending_isbn_book"] = book
+                    context.user_data.pop("awaiting_wishlist_isbn", None)
+                    context.user_data.pop("awaiting_wishlist_title", None)
+                    await update.effective_message.reply_text(
+                        text=f"📖 *Найдена книга:*\n\n{book.format_entry()}\n\nДобавить эту книгу в ваш вишлист?",
+                        parse_mode=ParseMode.MARKDOWN,
+                        reply_markup=get_isbn_confirm_inline_keyboard(),
+                    )
+                    return
+                else:
+                    context.user_data.pop("awaiting_wishlist_isbn", None)
+                    context.user_data["awaiting_wishlist_title"] = True
+                    await update.effective_message.reply_text(
+                        text=f"❌ *Книга по указанному ISBN ({cleaned_isbn}) не найдена.*\n\nВы можете попробовать еще раз или отправить название книги сообщением для добавления вручную:",
+                        parse_mode=ParseMode.MARKDOWN,
+                        reply_markup=get_wishlist_add_inline_keyboard(),
+                    )
+                    return
+            else:
+                await update.effective_message.reply_text(
+                    text=WISHLIST_ISBN_INVALID_MESSAGE,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_isbn_input_inline_keyboard(),
+                )
+                return
+
     # Check if we are awaiting a wishlist book title
     is_awaiting_title = False
     if context is not None and hasattr(context, "user_data") and isinstance(context.user_data, dict):
@@ -183,6 +232,15 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if is_awaiting_title:
         if text.startswith("/"):
             context.user_data["awaiting_wishlist_title"] = False
+        elif text in ["By ISBN", "by isbn", "По ISBN", "по isbn", "🔢 По ISBN"]:
+            context.user_data["awaiting_wishlist_isbn"] = True
+            context.user_data.pop("awaiting_wishlist_title", None)
+            await update.effective_message.reply_text(
+                text=WISHLIST_ISBN_PROMPT,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_isbn_input_inline_keyboard(),
+            )
+            return
         else:
             context.user_data["awaiting_wishlist_title"] = False
             wishlist_section.service.add_book(user_id, title=text)
@@ -197,11 +255,25 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if text in ["Add Book", "➕ Добавить книгу", "Добавить книгу"]:
         if context is not None and hasattr(context, "user_data") and isinstance(context.user_data, dict):
             context.user_data["awaiting_wishlist_title"] = True
+            context.user_data.pop("awaiting_wishlist_isbn", None)
             context.user_data.pop("awaiting_wishlist_edit", None)
+            context.user_data.pop("pending_isbn_book", None)
         await update.effective_message.reply_text(
             text=WISHLIST_ADD_PROMPT,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=wishlist_section.get_reply_markup(inline=True),
+            reply_markup=get_wishlist_add_inline_keyboard(),
+        )
+        return
+    elif text in ["By ISBN", "by isbn", "По ISBN", "по isbn", "🔢 По ISBN", "ISBN"]:
+        if context is not None and hasattr(context, "user_data") and isinstance(context.user_data, dict):
+            context.user_data["awaiting_wishlist_isbn"] = True
+            context.user_data.pop("awaiting_wishlist_title", None)
+            context.user_data.pop("awaiting_wishlist_edit", None)
+            context.user_data.pop("pending_isbn_book", None)
+        await update.effective_message.reply_text(
+            text=WISHLIST_ISBN_PROMPT,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_isbn_input_inline_keyboard(),
         )
         return
     elif text in ["GetList", "Get List", "📋 Мой список", "Мой список", "Список книг"]:
@@ -257,4 +329,75 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             text=UNKNOWN_COMMAND_MESSAGE,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_main_reply_keyboard(),
+        )
+
+
+async def photo_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle photo messages, e.g. barcode scanning for wishlist."""
+    if not update.effective_message or not update.effective_message.photo:
+        return
+
+    telegram_id = (
+        update.effective_user.id
+        if update.effective_user
+        else (update.effective_chat.id if update.effective_chat else 0)
+    )
+    user_id = get_user_id(telegram_id)
+
+    is_awaiting_isbn = False
+    if context is not None and hasattr(context, "user_data") and isinstance(context.user_data, dict):
+        is_awaiting_isbn = bool(context.user_data.get("awaiting_wishlist_isbn"))
+
+    if not is_awaiting_isbn:
+        return
+
+    photos = update.effective_message.photo
+    photo_obj = photos[-1]
+    tmp_path = None
+    isbn = None
+
+    try:
+        file = await context.bot.get_file(photo_obj.file_id)
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            tmp_path = tmp.name
+        await file.download_to_drive(tmp_path)
+        isbn = decode_barcode_from_image(tmp_path)
+    except Exception as e:
+        logger.error(f"Error processing barcode photo: {e}", exc_info=True)
+        isbn = None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception as e:
+                logger.warning(f"Failed to remove temp photo {tmp_path}: {e}")
+
+    if not isbn:
+        # Barcode not scanned from picture -> warn and return to "By ISBN" input
+        context.user_data["awaiting_wishlist_isbn"] = True
+        await update.effective_message.reply_text(
+            text=WISHLIST_BARCODE_NOT_FOUND_MESSAGE,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_isbn_input_inline_keyboard(),
+        )
+        return
+
+    # Look up book by scanned ISBN
+    book = lookup_book_by_isbn(isbn)
+    if book:
+        context.user_data["pending_isbn_book"] = book
+        context.user_data.pop("awaiting_wishlist_isbn", None)
+        context.user_data.pop("awaiting_wishlist_title", None)
+        await update.effective_message.reply_text(
+            text=f"📖 *Найдена книга:*\n\n{book.format_entry()}\n\nДобавить эту книгу в ваш вишлист?",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_isbn_confirm_inline_keyboard(),
+        )
+    else:
+        context.user_data.pop("awaiting_wishlist_isbn", None)
+        context.user_data["awaiting_wishlist_title"] = True
+        await update.effective_message.reply_text(
+            text=f"❌ *Книга со штрих-кодом ISBN {isbn} не найдена.*\n\nВы можете попробовать снова или отправить название книги сообщением для добавления вручную:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_wishlist_add_inline_keyboard(),
         )
