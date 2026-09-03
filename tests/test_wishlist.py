@@ -38,6 +38,7 @@ from bot.content import (
     WISHLIST_ISBN_NOT_FOUND_MESSAGE,
     WISHLIST_ISBN_PROMPT,
     WISHLIST_MESSAGE,
+    WISHLIST_PHOTO_TOO_LARGE_MESSAGE,
     WISHLIST_REMOVE_PROMPT,
 )
 from bot.handlers import (
@@ -811,23 +812,19 @@ async def test_wishlist_add_flow_by_isbn_invalid_text(temp_service):
 
 @pytest.mark.asyncio
 async def test_wishlist_photo_barcode_success(temp_service):
-    """Photo with barcode reads barcode, cleans cache file, and presents confirmation."""
+    """Photo with barcode reads barcode in-memory and presents confirmation."""
     wishlist_section.service = temp_service
     context = MagicMock()
     context.user_data = {"awaiting_wishlist_isbn": True}
 
-    # Mock photo file download
-    temp_downloaded_path = None
-
-    async def fake_download(path):
-        nonlocal temp_downloaded_path
-        temp_downloaded_path = path
-        # Write some dummy bytes
-        with open(path, "wb") as f:
-            f.write(b"fake image data")
+    # Create dummy image in memory
+    img_byte_arr = io.BytesIO()
+    Image.new("RGB", (100, 100), color="white").save(img_byte_arr, format="PNG")
+    dummy_bytes = bytearray(img_byte_arr.getvalue())
 
     mock_file = MagicMock()
-    mock_file.download_to_drive = AsyncMock(side_effect=fake_download)
+    mock_file.file_size = len(dummy_bytes)
+    mock_file.download_as_bytearray = AsyncMock(return_value=dummy_bytes)
     context.bot.get_file = AsyncMock(return_value=mock_file)
 
     found_book = Book(title="The Hobbit", authors="J.R.R. Tolkien", isbn="9780261102217")
@@ -835,14 +832,10 @@ async def test_wishlist_photo_barcode_success(temp_service):
     with patch("bot.handlers.decode_barcode_from_image", return_value="9780261102217"), \
          patch("bot.handlers.lookup_book_by_isbn", return_value=found_book):
         update_photo = MagicMock(spec=Update)
-        photo_mock = MagicMock(file_id="photo_123")
+        photo_mock = MagicMock(file_id="photo_123", file_size=len(dummy_bytes))
         update_photo.effective_message = AsyncMock(photo=[photo_mock])
         update_photo.effective_user = MagicMock(id=123123)
         await photo_message_handler(update_photo, context)
-
-    # Verify temp file was deleted from cache
-    assert temp_downloaded_path is not None
-    assert not os.path.exists(temp_downloaded_path)
 
     # Verify pending book set and confirmation asked
     assert context.user_data.get("pending_isbn_book") == found_book
@@ -854,33 +847,26 @@ async def test_wishlist_photo_barcode_success(temp_service):
 
 @pytest.mark.asyncio
 async def test_wishlist_photo_barcode_not_detected(temp_service):
-    """Photo without barcode warns user and stays in By ISBN input, cleaning cache file."""
+    """Photo without barcode warns user and stays in By ISBN input."""
     wishlist_section.service = temp_service
     context = MagicMock()
     context.user_data = {"awaiting_wishlist_isbn": True}
 
-    temp_downloaded_path = None
-
-    async def fake_download(path):
-        nonlocal temp_downloaded_path
-        temp_downloaded_path = path
-        with open(path, "wb") as f:
-            f.write(b"unreadable image data")
+    img_byte_arr = io.BytesIO()
+    Image.new("RGB", (50, 50), color="white").save(img_byte_arr, format="PNG")
+    dummy_bytes = bytearray(img_byte_arr.getvalue())
 
     mock_file = MagicMock()
-    mock_file.download_to_drive = AsyncMock(side_effect=fake_download)
+    mock_file.file_size = len(dummy_bytes)
+    mock_file.download_as_bytearray = AsyncMock(return_value=dummy_bytes)
     context.bot.get_file = AsyncMock(return_value=mock_file)
 
     with patch("bot.handlers.decode_barcode_from_image", return_value=None):
         update_photo = MagicMock(spec=Update)
-        photo_mock = MagicMock(file_id="photo_456")
+        photo_mock = MagicMock(file_id="photo_456", file_size=len(dummy_bytes))
         update_photo.effective_message = AsyncMock(photo=[photo_mock])
         update_photo.effective_user = MagicMock(id=123123)
         await photo_message_handler(update_photo, context)
-
-    # Verify temp file deleted
-    assert temp_downloaded_path is not None
-    assert not os.path.exists(temp_downloaded_path)
 
     # Verify warning and returned to ISBN input
     assert context.user_data.get("awaiting_wishlist_isbn") is True
@@ -888,6 +874,73 @@ async def test_wishlist_photo_barcode_not_detected(temp_service):
     reply_markup = update_photo.effective_message.reply_text.call_args.kwargs["reply_markup"]
     cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
     assert CB_WISHLIST_ADD in cbs
+
+
+@pytest.mark.asyncio
+async def test_wishlist_photo_too_large_rejected_by_photo_size(temp_service):
+    """Photos exceeding 15MB are denied with an error message before downloading."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    update_photo = MagicMock(spec=Update)
+    photo_mock = MagicMock(file_id="photo_huge", file_size=16 * 1024 * 1024)
+    update_photo.effective_message = AsyncMock(photo=[photo_mock])
+    update_photo.effective_user = MagicMock(id=123123)
+
+    await photo_message_handler(update_photo, context)
+
+    assert context.bot.get_file.call_count == 0
+    assert context.user_data.get("awaiting_wishlist_isbn") is True
+    assert update_photo.effective_message.reply_text.call_args.kwargs["text"] == WISHLIST_PHOTO_TOO_LARGE_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_wishlist_photo_too_large_rejected_by_file_size(temp_service):
+    """Files exceeding 15MB reported by Telegram File object are denied before bytearray conversion."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    mock_file = MagicMock()
+    mock_file.file_size = 16 * 1024 * 1024
+    mock_file.download_as_bytearray = AsyncMock()
+    context.bot.get_file = AsyncMock(return_value=mock_file)
+
+    update_photo = MagicMock(spec=Update)
+    photo_mock = MagicMock(file_id="photo_large_file", file_size=None)
+    update_photo.effective_message = AsyncMock(photo=[photo_mock])
+    update_photo.effective_user = MagicMock(id=123123)
+
+    await photo_message_handler(update_photo, context)
+
+    assert mock_file.download_as_bytearray.call_count == 0
+    assert context.user_data.get("awaiting_wishlist_isbn") is True
+    assert update_photo.effective_message.reply_text.call_args.kwargs["text"] == WISHLIST_PHOTO_TOO_LARGE_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_wishlist_photo_too_large_rejected_by_downloaded_bytes(temp_service):
+    """Downloaded bytearrays exceeding 15MB are denied with an appropriate error message."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_isbn": True}
+
+    huge_bytes = bytearray(b"0" * (16 * 1024 * 1024))
+    mock_file = MagicMock()
+    mock_file.file_size = None
+    mock_file.download_as_bytearray = AsyncMock(return_value=huge_bytes)
+    context.bot.get_file = AsyncMock(return_value=mock_file)
+
+    update_photo = MagicMock(spec=Update)
+    photo_mock = MagicMock(file_id="photo_download_large", file_size=None)
+    update_photo.effective_message = AsyncMock(photo=[photo_mock])
+    update_photo.effective_user = MagicMock(id=123123)
+
+    await photo_message_handler(update_photo, context)
+
+    assert context.user_data.get("awaiting_wishlist_isbn") is True
+    assert update_photo.effective_message.reply_text.call_args.kwargs["text"] == WISHLIST_PHOTO_TOO_LARGE_MESSAGE
 
 
 def test_get_book_added_inline_keyboard():

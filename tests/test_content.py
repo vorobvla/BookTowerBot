@@ -26,6 +26,8 @@ from bot.content import (
     TIMETABLE_MESSAGE,
     TIMETABLES_PATH,
     UNKNOWN_COMMAND_MESSAGE,
+    MAX_PHOTO_SIZE_BYTES,
+    WISHLIST_PHOTO_TOO_LARGE_MESSAGE,
 )
 
 
@@ -105,3 +107,9 @@ def test_button_constants():
     assert BUTTON_CALLBACK_MAP[BTN_PARTICIPANTS] == CB_PARTICIPANTS
     assert BUTTON_CALLBACK_MAP[BTN_SHOW_PARTICIPANTS] == CB_PARTICIPANTS
     assert BUTTON_CALLBACK_MAP[BTN_HELP] == CB_HELP
+
+
+def test_photo_size_limit_and_message():
+    assert MAX_PHOTO_SIZE_BYTES == 15 * 1024 * 1024
+    assert isinstance(WISHLIST_PHOTO_TOO_LARGE_MESSAGE, str)
+    assert "15" in WISHLIST_PHOTO_TOO_LARGE_MESSAGE

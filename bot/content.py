@@ -112,6 +112,13 @@ WISHLIST_BARCODE_NOT_FOUND_MESSAGE = (
     "либо введите ISBN сообщением:"
 )
 
+MAX_PHOTO_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB limit for photo barcode scanning
+
+WISHLIST_PHOTO_TOO_LARGE_MESSAGE = (
+    "⚠️ *Размер изображения превышает 15 МБ.*\n\n"
+    "Пожалуйста, отправьте фотографию меньшего размера (до 15 МБ) или введите ISBN сообщением:"
+)
+
 WISHLIST_ISBN_NOT_FOUND_MESSAGE = (
     "❌ *Книга по указанному ISBN не найдена.*\n\n"
     "Вы можете попробовать еще раз или отправить название книги сообщением для добавления вручную:"

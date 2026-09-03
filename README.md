@@ -120,8 +120,8 @@ python main.py --token "your_telegram_bot_token_here"
 # Build the image
 docker build -t booktowerbot .
 
-# Run container with environment variable
-docker run -d --name booktower_bot --restart unless-stopped -e TELEGRAM_BOT_TOKEN="your_token_here" booktowerbot
+# Run container with environment variable and 200MB soft memory limit
+docker run -d --name booktower_bot --restart unless-stopped --memory-reservation 200M -e TELEGRAM_BOT_TOKEN="your_token_here" booktowerbot
 
 # Check logs
 docker logs -f booktower_bot

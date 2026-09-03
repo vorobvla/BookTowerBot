@@ -3,8 +3,14 @@ services:
     build: .
     container_name: booktower_bot
     restart: unless-stopped
+    mem_reservation: 200M
+    deploy:
+      resources:
+        reservations:
+          memory: 200M
     env_file:
       - .env
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - ASSETS_PATH=${ASSETS_PATH}
+      - MEMORY_LIMIT=${MEMORY_LIMIT:-200M}

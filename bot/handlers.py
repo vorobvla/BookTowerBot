@@ -1,14 +1,18 @@
 """Telegram bot command, message, and callback handlers."""
 
 import inspect
+import io
 import logging
 import os
 import tempfile
+
+from PIL import Image
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from bot.content import (
+    MAX_PHOTO_SIZE_BYTES,
     UNKNOWN_COMMAND_MESSAGE,
     WISHLIST_ADD_PROMPT,
     WISHLIST_BARCODE_NOT_FOUND_MESSAGE,
@@ -17,6 +21,7 @@ from bot.content import (
     WISHLIST_ISBN_INVALID_MESSAGE,
     WISHLIST_ISBN_NOT_FOUND_MESSAGE,
     WISHLIST_ISBN_PROMPT,
+    WISHLIST_PHOTO_TOO_LARGE_MESSAGE,
     WISHLIST_REMOVE_PROMPT,
 )
 from bot.keyboards import get_main_reply_keyboard
@@ -354,24 +359,45 @@ async def photo_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     photos = update.effective_message.photo
     photo_obj = photos[-1]
-    tmp_path = None
+
+    # Check photo size limit before downloading
+    if photo_obj.file_size and photo_obj.file_size > MAX_PHOTO_SIZE_BYTES:
+        context.user_data["awaiting_wishlist_isbn"] = True
+        await update.effective_message.reply_text(
+            text=WISHLIST_PHOTO_TOO_LARGE_MESSAGE,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_isbn_input_inline_keyboard(),
+        )
+        return
+
     isbn = None
 
     try:
         file = await context.bot.get_file(photo_obj.file_id)
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            tmp_path = tmp.name
-        await file.download_to_drive(tmp_path)
-        isbn = decode_barcode_from_image(tmp_path)
+        if file.file_size and file.file_size > MAX_PHOTO_SIZE_BYTES:
+            context.user_data["awaiting_wishlist_isbn"] = True
+            await update.effective_message.reply_text(
+                text=WISHLIST_PHOTO_TOO_LARGE_MESSAGE,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_isbn_input_inline_keyboard(),
+            )
+            return
+
+        image_bytes = await file.download_as_bytearray()
+        if len(image_bytes) > MAX_PHOTO_SIZE_BYTES:
+            context.user_data["awaiting_wishlist_isbn"] = True
+            await update.effective_message.reply_text(
+                text=WISHLIST_PHOTO_TOO_LARGE_MESSAGE,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_isbn_input_inline_keyboard(),
+            )
+            return
+
+        image = Image.open(io.BytesIO(image_bytes))
+        isbn = decode_barcode_from_image(image)
     except Exception as e:
         logger.error(f"Error processing barcode photo: {e}", exc_info=True)
         isbn = None
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception as e:
-                logger.warning(f"Failed to remove temp photo {tmp_path}: {e}")
 
     if not isbn:
         # Barcode not scanned from picture -> warn and return to "By ISBN" input
