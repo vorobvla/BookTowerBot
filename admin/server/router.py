@@ -126,6 +126,12 @@ class AdminRouter:
         if path == "/timetables/delete" and request.method == "POST":
             return self._handle_post_timetables_delete(request)
 
+        # Locations Web Routes
+        if path == "/locations":
+            return self._handle_get_locations(request)
+        if path in ("/locations/rename", "/locations/update") and request.method == "POST":
+            return self._handle_post_locations_rename(request)
+
         # Map Web Routes
         if path == "/map":
             return self._handle_get_map(request)
@@ -590,6 +596,33 @@ class AdminRouter:
         except Exception as e:
             return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
 
+    # --- Locations Web Handlers ---
+
+    def _handle_get_locations(self, request: AdminRequest) -> AdminResponse:
+        locations_summary = self.timetable_service.get_locations_summary()
+        error = request.query_params.get("error")
+        message = request.query_params.get("msg")
+        html = AdminTemplateRenderer.render_locations(
+            locations_summary,
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
+        return AdminResponse.html(html)
+
+    def _handle_post_locations_rename(self, request: AdminRequest) -> AdminResponse:
+        old_name = request.form_data.get("old_name") or request.form_data.get("old_location", "")
+        new_name = request.form_data.get("new_name") or request.form_data.get("new_location", "")
+        try:
+            count = self.timetable_service.rename_location(old_name, new_name)
+            if count > 0:
+                msg = f"Локация «{old_name}» переименована в «{new_name}» (обновлено {count} событий)"
+            else:
+                msg = f"Локация «{new_name}» сохранена"
+            return AdminResponse.redirect("/locations?msg=" + quote(msg))
+        except Exception as e:
+            return AdminResponse.redirect("/locations?error=" + quote(str(e)))
+
     # --- Map Handlers ---
 
     def _handle_get_map(self, request: AdminRequest) -> AdminResponse:
@@ -756,6 +789,16 @@ class AdminRouter:
 
         if path == "/api/locations" and request.method == "GET":
             return AdminResponse.json(self.timetable_service.get_all_locations())
+
+        if path in ("/api/locations/rename", "/api/locations/update") and request.method == "POST":
+            payload = request.json() or {}
+            old_name = payload.get("old_name") or payload.get("old_location", "")
+            new_name = payload.get("new_name") or payload.get("new_location", "")
+            try:
+                count = self.timetable_service.rename_location(old_name, new_name)
+                return AdminResponse.json({"status": "ok", "updated_events_count": count})
+            except Exception as e:
+                return AdminResponse.json({"error": str(e)}, status_code=400)
 
         if path == "/api/timetables":
             if request.method == "GET":

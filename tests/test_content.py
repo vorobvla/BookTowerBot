@@ -7,6 +7,13 @@ from bot.content import (
     BTN_RECOMMENDATIONS,
     BTN_SHOW_PARTICIPANTS,
     BTN_TIMETABLE,
+    BUTTON_CALLBACK_MAP,
+    CB_CHILDREN_ACTIVITY,
+    CB_HELP,
+    CB_MAP,
+    CB_PARTICIPANTS,
+    CB_RECOMMENDATIONS,
+    CB_TIMETABLE,
     HELP_MESSAGE,
     MAP_MESSAGE,
     MAP_PATH,
@@ -89,3 +96,12 @@ def test_button_constants():
     assert isinstance(BTN_SHOW_PARTICIPANTS, str) and BTN_SHOW_PARTICIPANTS == "📍 Информация о стендах участников"
     assert isinstance(BTN_HELP, str) and len(BTN_HELP) > 0
     assert isinstance(UNKNOWN_COMMAND_MESSAGE, str) and len(UNKNOWN_COMMAND_MESSAGE) > 0
+
+    # Ensure button to callback mapping dictionary is defined and complete
+    assert isinstance(BUTTON_CALLBACK_MAP, dict)
+    assert BUTTON_CALLBACK_MAP[BTN_MAP] == CB_MAP
+    assert BUTTON_CALLBACK_MAP[BTN_TIMETABLE] == CB_TIMETABLE
+    assert BUTTON_CALLBACK_MAP[BTN_RECOMMENDATIONS] == CB_RECOMMENDATIONS
+    assert BUTTON_CALLBACK_MAP[BTN_PARTICIPANTS] == CB_PARTICIPANTS
+    assert BUTTON_CALLBACK_MAP[BTN_SHOW_PARTICIPANTS] == CB_PARTICIPANTS
+    assert BUTTON_CALLBACK_MAP[BTN_HELP] == CB_HELP

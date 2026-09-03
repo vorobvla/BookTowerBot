@@ -115,6 +115,70 @@ class AdminTimetableService:
 
         return sorted(locations_set)
 
+    def get_locations_summary(self) -> List[Dict[str, Any]]:
+        """Collect and return structured summary for all locations with event counts and dates."""
+        summary_map: Dict[str, Dict[str, Any]] = {}
+        for date_key in self.list_days():
+            data = self.get_day_dict(date_key)
+            if not data or "events" not in data or not isinstance(data["events"], list):
+                continue
+            for event in data["events"]:
+                if not isinstance(event, dict):
+                    continue
+                loc = event.get("location", "")
+                if loc and loc.strip():
+                    loc_name = loc.strip()
+                    if loc_name not in summary_map:
+                        summary_map[loc_name] = {
+                            "name": loc_name,
+                            "events_count": 0,
+                            "days": [],
+                        }
+                    summary_map[loc_name]["events_count"] += 1
+                    if date_key not in summary_map[loc_name]["days"]:
+                        summary_map[loc_name]["days"].append(date_key)
+
+        result = list(summary_map.values())
+        result.sort(key=lambda item: item["name"].lower())
+        return result
+
+    def rename_location(self, old_name: str, new_name: str) -> int:
+        """Rename a location across all events in all timetable dates (including staged changes).
+
+        Returns the total number of events whose location was updated.
+        """
+        clean_old = (old_name or "").strip()
+        clean_new = (new_name or "").strip()
+
+        if not clean_old:
+            raise ValueError("Field 'old_name' is mandatory and cannot be empty / Прежнее название локации обязательно")
+        if not clean_new:
+            raise ValueError("Field 'new_name' is mandatory and cannot be empty / Новое название локации обязательно")
+
+        if clean_old == clean_new:
+            return 0
+
+        updated_events_count = 0
+        for date_key in self.list_days():
+            data = self.get_day_dict(date_key)
+            if not data or "events" not in data or not isinstance(data["events"], list):
+                continue
+
+            day_modified = False
+            for event in data["events"]:
+                if isinstance(event, dict) and event.get("location", "").strip() == clean_old:
+                    event["location"] = clean_new
+                    updated_events_count += 1
+                    day_modified = True
+
+            if day_modified:
+                self.save_day_dict(date_key, data)
+
+        if updated_events_count > 0:
+            self._has_pending_changes = True
+
+        return updated_events_count
+
     def get_day_dict(self, date: str) -> Optional[Dict[str, Any]]:
         """Load raw JSON dictionary for specified date from staged changes or disk."""
         clean_date = date.strip()

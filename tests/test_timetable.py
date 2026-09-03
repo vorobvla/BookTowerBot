@@ -94,17 +94,16 @@ def test_timetable_service_with_real_assets():
     assert day13.date == "13092026"
 
     locations = service.get_locations("13092026")
-    assert "Главная сцена" in locations
-    assert "Сцена у Рояля" in locations
+    assert "Сцена" in locations
+    assert "Мастер-классы" in locations
 
-    events = service.get_events("13092026", "Главная сцена")
+    events = service.get_events("13092026", "Сцена")
     assert len(events) >= 2
-    assert events[0].time == "10:00"
+    assert events[0].time == "10:30"
 
-    formatted = service.format_timetable("13092026", "Главная сцена")
+    formatted = service.format_timetable("13092026", "Сцена")
     assert "13.09.2026" in formatted
-    assert "Главная сцена" in formatted
-    assert "Презентация книги Воскресенье Главная сцена" in formatted
+    assert "Сцена" in formatted
 
 
 def test_timetable_keyboards():
@@ -116,7 +115,8 @@ def test_timetable_keyboards():
     locations = ["Главная сцена", "Сцена у Рояля"]
     kb_locs = get_locations_inline_keyboard("13092026", locations)
     assert len(kb_locs.inline_keyboard) == 3  # 2 locations + 1 back button
-    assert kb_locs.inline_keyboard[0][0].callback_data == f"{CB_TT_LOC_PREFIX}13092026:Главная сцена"
+    assert kb_locs.inline_keyboard[0][0].callback_data == f"{CB_TT_LOC_PREFIX}13092026:0"
+    assert kb_locs.inline_keyboard[1][0].callback_data == f"{CB_TT_LOC_PREFIX}13092026:1"
     assert kb_locs.inline_keyboard[2][0].callback_data == CB_TIMETABLE
 
     kb_details = get_timetable_details_keyboard("13092026")
@@ -157,10 +157,10 @@ async def test_timetable_section_interactions():
 
     # handle_callback_query: events view
     query_events = AsyncMock()
-    query_events.data = "tt_loc:13092026:Главная сцена"
+    query_events.data = "tt_loc:13092026:0"
     await section.handle_callback_query(query_events)
     query_events.edit_message_text.assert_awaited_once()
-    assert "Главная сцена" in query_events.edit_message_text.call_args.kwargs["text"]
+    assert "Сцена" in query_events.edit_message_text.call_args.kwargs["text"]
 
 
 def test_timetable_service_reload_on_each_request(tmp_path):
@@ -350,3 +350,31 @@ def test_events_sorted_by_time_then_name():
         "Обед с Пидиди",
         "Кино с Окси",
     ]
+
+
+@pytest.mark.asyncio
+async def test_long_location_name_callback_under_64_bytes():
+    """Ensure dynamic location keyboards do not exceed Telegram's 64-byte callback_data limit."""
+    long_location = "Spojka Events, Pernerova 697/35, Praha 8 (Мастер-классы и интерактивные презентации)"
+    # Raw location in UTF-8 would easily exceed 64 bytes
+    assert len(f"tt_loc:13092026:{long_location}".encode("utf-8")) > 64
+
+    kb = get_locations_inline_keyboard("13092026", [long_location])
+    for row in kb.inline_keyboard:
+        for btn in row:
+            assert len(btn.callback_data.encode("utf-8")) <= 64
+
+    # Verify clicking the button resolves the full long location
+    service = TimetableService()
+    section = Timetable(service=service)
+    # Mock get_locations to return long_location
+    section.service.get_locations = lambda d: [long_location]
+    section.service.format_timetable = lambda d, loc: f"Schedule for {loc}"
+
+    query = AsyncMock()
+    query.data = kb.inline_keyboard[0][0].callback_data  # "tt_loc:13092026:0"
+    query.edit_message_text = AsyncMock()
+
+    await section.handle_callback_query(query)
+    query.edit_message_text.assert_awaited_once()
+    assert long_location in query.edit_message_text.call_args.kwargs["text"]

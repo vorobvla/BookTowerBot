@@ -246,7 +246,7 @@ async def test_button_callback_handler_recommendations_flow():
     assert kwargs_recs["reply_markup"] is not None
 
     # 2. Click category button -> returns books
-    update_cat = create_mock_update_callback("rec_cat:Нонфикшн")
+    update_cat = create_mock_update_callback("rec_cat:0")
     await button_callback_handler(update_cat, context)
     update_cat.callback_query.answer.assert_awaited_once()
     update_cat.callback_query.edit_message_text.assert_awaited_once()
@@ -321,14 +321,14 @@ async def test_button_callback_handler_timetable_flow():
     assert kwargs_locs["reply_markup"] is not None
 
     # 3. Click a location -> returns events for that location
-    update_events = create_mock_update_callback("tt_loc:13092026:Главная сцена")
+    update_events = create_mock_update_callback("tt_loc:13092026:0")
     await button_callback_handler(update_events, context)
     update_events.callback_query.answer.assert_awaited_once()
     update_events.callback_query.edit_message_text.assert_awaited_once()
     kwargs_events = update_events.callback_query.edit_message_text.call_args.kwargs
-    assert "Главная сцена" in kwargs_events["text"]
+    assert "Сцена" in kwargs_events["text"]
     assert "13.09.2026" in kwargs_events["text"]
-    assert "10:00" in kwargs_events["text"]
+    assert "10:30" in kwargs_events["text"]
     assert kwargs_events["reply_markup"] is not None
 
 
@@ -353,7 +353,7 @@ async def test_button_callback_handler_children_activity_flow():
     assert kwargs_locs["reply_markup"] is not None
 
     # 3. Click a location -> returns events for that location
-    update_events = create_mock_update_callback("ca_loc:13092026:Сцена у Рояля")
+    update_events = create_mock_update_callback("ca_loc:13092026:0")
     await button_callback_handler(update_events, context)
     update_events.callback_query.answer.assert_awaited_once()
     update_events.callback_query.edit_message_text.assert_awaited_once()

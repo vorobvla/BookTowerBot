@@ -106,8 +106,19 @@ class ChildrenActivity(BaseSection):
         elif data.startswith(CB_CA_LOC_PREFIX):
             payload = data[len(CB_CA_LOC_PREFIX):]
             if ":" in payload:
-                date_str, location = payload.split(":", 1)
-                await self._show_timetable(query, date_str, location)
+                date_str, loc_key = payload.split(":", 1)
+                locations = self.service.get_locations(date_str, children_only=True)
+                if loc_key.isdigit():
+                    loc_idx = int(loc_key)
+                    if 0 <= loc_idx < len(locations):
+                        location = locations[loc_idx]
+                        await self._show_timetable(query, date_str, location)
+                    else:
+                        await self._show_dates(query)
+                elif loc_key in locations:
+                    await self._show_timetable(query, date_str, loc_key)
+                else:
+                    await self._show_dates(query)
             else:
                 await self._show_dates(query)
         else:

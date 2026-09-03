@@ -1,0 +1,18 @@
+<tr>
+    <td>
+        <strong>📍 {{ location_name }}</strong>
+    </td>
+    <td>
+        <span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem;">
+            {{ events_count }} событий
+        </span>
+    </td>
+    <td>
+        {{ days_display }}
+    </td>
+    <td>
+        <button type="button" class="btn btn-sm" onclick="openEditLocationModal(this)" data-location="{{ location_raw }}" data-count="{{ events_count }}">
+            ✏️ Редактировать
+        </button>
+    </td>
+</tr>

@@ -2,7 +2,7 @@
 
 import json
 import os
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from bot.content import RECS_PATH
 from bot.recommendations.category import RecommendationCategory
@@ -36,17 +36,32 @@ class RecommendationsService:
         """Return list of names for all available recommendation categories."""
         return [cat.name for cat in self.get_categories() if cat.name]
 
-    def get_category(self, category_name: str) -> Optional[RecommendationCategory]:
-        """Return RecommendationCategory matching the specified name."""
-        target = category_name.strip().lower()
-        for cat in self.get_categories():
+    def get_category_by_index(self, index: int) -> Optional[RecommendationCategory]:
+        """Return RecommendationCategory matching the list index."""
+        categories = self.get_categories()
+        if 0 <= index < len(categories):
+            return categories[index]
+        return None
+
+    def get_category(self, query_or_index: Any) -> Optional[RecommendationCategory]:
+        """Return RecommendationCategory matching the specified name or index."""
+        categories = self.get_categories()
+        if isinstance(query_or_index, int):
+            return self.get_category_by_index(query_or_index)
+        if isinstance(query_or_index, str) and query_or_index.isdigit():
+            idx = int(query_or_index)
+            if 0 <= idx < len(categories):
+                return categories[idx]
+
+        target = str(query_or_index).strip().lower()
+        for cat in categories:
             if cat.name.strip().lower() == target:
                 return cat
         return None
 
-    def format_category_recommendations(self, category_name: str) -> str:
-        """Format recommendations for the specified category as Markdown."""
-        cat = self.get_category(category_name)
+    def format_category_recommendations(self, category_or_index: Any) -> str:
+        """Format recommendations for the specified category or index as Markdown."""
+        cat = self.get_category(category_or_index)
         if not cat:
-            return f"📚 *Рекомендации*\n\nПодборка «{category_name}» не найдена."
+            return f"📚 *Рекомендации*\n\nПодборка «{category_or_index}» не найдена."
         return cat.format_markdown()

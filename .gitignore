@@ -28,3 +28,4 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+/todo.txt

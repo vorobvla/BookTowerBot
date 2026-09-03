@@ -33,6 +33,7 @@ class AdminTemplateRenderer:
         """Render base layout with navbar, alerts, container, and unsaved changes notice."""
         template = cls.load_template("layout.html")
         timetables_active = "active" if active_tab == "timetables" else ""
+        locations_active = "active" if active_tab == "locations" else ""
         recs_active = "active" if active_tab == "recs" else ""
         map_active = "active" if active_tab == "map" else ""
         participants_active = "active" if active_tab == "participants" else ""
@@ -44,6 +45,8 @@ class AdminTemplateRenderer:
                 return_to_path = "/recs"
             elif active_tab == "participants":
                 return_to_path = "/participants"
+            elif active_tab == "locations":
+                return_to_path = "/locations"
             else:
                 return_to_path = "/timetables"
 
@@ -75,6 +78,7 @@ class AdminTemplateRenderer:
         return (
             template.replace("{{ title }}", html.escape(title))
             .replace("{{ timetables_active }}", timetables_active)
+            .replace("{{ locations_active }}", locations_active)
             .replace("{{ recs_active }}", recs_active)
             .replace("{{ map_active }}", map_active)
             .replace("{{ participants_active }}", participants_active)
@@ -242,6 +246,70 @@ class AdminTemplateRenderer:
             title="Расписания",
             content=content,
             active_tab="timetables",
+            has_unsaved_changes=has_unsaved_changes,
+        )
+
+    @classmethod
+    def render_locations(
+        cls,
+        locations_summary: List[Dict[str, Any]],
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
+    ) -> str:
+        """Render locations management view with summary of event counts and rename capabilities."""
+        alert_tpl = cls.load_template("alert.html")
+        alerts = []
+        if error:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error))
+            )
+        if message:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        alerts_html = "".join(alerts)
+
+        if not locations_summary:
+            location_rows = cls.load_template("locations_empty_row.html")
+        else:
+            row_tpl = cls.load_template("locations_row.html")
+            rows = []
+            for item in locations_summary:
+                loc_name = item.get("name", "")
+                events_count = item.get("events_count", 0)
+                raw_days = item.get("days", [])
+
+                formatted_days = []
+                for d in raw_days:
+                    if len(d) == 8 and d.isdigit():
+                        formatted_days.append(f"{d[:2]}.{d[2:4]}.{d[4:]}")
+                    else:
+                        formatted_days.append(d)
+                days_display = ", ".join(formatted_days) if formatted_days else "—"
+
+                row_rendered = (
+                    row_tpl.replace("{{ location_name }}", html.escape(loc_name))
+                    .replace("{{ location_raw }}", html.escape(loc_name, quote=True))
+                    .replace("{{ events_count }}", str(events_count))
+                    .replace("{{ days_display }}", html.escape(days_display))
+                )
+                rows.append(row_rendered)
+            location_rows = "".join(rows)
+
+        locations_tpl = cls.load_template("locations.html")
+        content = (
+            locations_tpl.replace("{{ alerts_html }}", alerts_html)
+            .replace("{{ locations_count }}", str(len(locations_summary)))
+            .replace("{{ location_rows }}", location_rows)
+        )
+
+        return cls._render_layout(
+            title="Управление локациями",
+            content=content,
+            active_tab="locations",
             has_unsaved_changes=has_unsaved_changes,
         )
 

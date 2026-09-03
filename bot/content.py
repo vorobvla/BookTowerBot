@@ -100,5 +100,22 @@ BTN_RECOMMENDATIONS = "📚 Рекомендации"
 BTN_PARTICIPANTS = "👥 Участники"
 BTN_SHOW_PARTICIPANTS = "📍 Информация о стендах участников"
 BTN_HELP = "ℹ️ Помощь"
+
+# Callback data constants
+CB_MAP = "action_map"
+CB_TIMETABLE = "action_timetable"
 CB_CHILDREN_ACTIVITY = "section_children_activity"
+CB_RECOMMENDATIONS = "action_recommendations"
 CB_PARTICIPANTS = "action_participants"
+CB_HELP = "action_help"
+
+# Dictionary binding button texts to callback data
+BUTTON_CALLBACK_MAP = {
+    BTN_MAP: CB_MAP,
+    BTN_TIMETABLE: CB_TIMETABLE,
+    BTN_CHILDREN_ACTIVITY: CB_CHILDREN_ACTIVITY,
+    BTN_RECOMMENDATIONS: CB_RECOMMENDATIONS,
+    BTN_PARTICIPANTS: CB_PARTICIPANTS,
+    BTN_SHOW_PARTICIPANTS: CB_PARTICIPANTS,
+    BTN_HELP: CB_HELP,
+}

@@ -10,6 +10,14 @@ CB_PART_ITEM_PREFIX = "part_item:"
 CB_PARTICIPANTS_LIST = "participants_list"
 
 
+BTN_BACK_TO_PARTICIPANTS = "« Назад к списку участников"
+
+# Callback map for participant navigation buttons
+PARTICIPANTS_CALLBACK_MAP = {
+    BTN_BACK_TO_PARTICIPANTS: CB_PARTICIPANTS,
+}
+
+
 def get_participants_inline_keyboard(participants: List[Participant]) -> InlineKeyboardMarkup:
     """Generate inline keyboard for available participants sorted by stand."""
     keyboard: List[List[InlineKeyboardButton]] = []
@@ -29,8 +37,8 @@ def get_participant_details_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(
-                text="« Назад к списку участников",
-                callback_data=CB_PARTICIPANTS,
+                text=BTN_BACK_TO_PARTICIPANTS,
+                callback_data=PARTICIPANTS_CALLBACK_MAP[BTN_BACK_TO_PARTICIPANTS],
             )
         ]
     ]

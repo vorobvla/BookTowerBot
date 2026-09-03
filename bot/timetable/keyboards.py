@@ -15,6 +15,17 @@ CB_CA_LOC_PREFIX = "ca_loc:"
 CB_CA_DATES = "ca_dates"
 
 
+BTN_BACK_TO_DATES = "« Назад к выбору даты"
+BTN_OTHER_LOCATION = "« Другая площадка"
+BTN_CHOOSE_OTHER_DATE = "🗓 Выбрать другую дату"
+
+# Callback map for timetable navigation buttons
+TIMETABLE_CALLBACK_MAP = {
+    BTN_BACK_TO_DATES: CB_TIMETABLE,
+    BTN_CHOOSE_OTHER_DATE: CB_TIMETABLE,
+}
+
+
 def get_dates_inline_keyboard(
     dates: List[str],
     date_formatter: Optional[Callable[[str], str]] = None,
@@ -50,17 +61,17 @@ def get_locations_inline_keyboard(
     """Generate inline keyboard for available locations on a specific date."""
     keyboard: List[List[InlineKeyboardButton]] = []
 
-    for loc in locations:
+    for idx, loc in enumerate(locations):
         btn = InlineKeyboardButton(
             text=f"📍 {loc}",
-            callback_data=f"{loc_prefix}{date_str}:{loc}",
+            callback_data=f"{loc_prefix}{date_str}:{idx}",
         )
         keyboard.append([btn])
 
     # Back button to return to dates selection
     keyboard.append([
         InlineKeyboardButton(
-            text="« Назад к выбору даты",
+            text=BTN_BACK_TO_DATES,
             callback_data=back_cb,
         )
     ])
@@ -77,13 +88,13 @@ def get_timetable_details_keyboard(
     keyboard = [
         [
             InlineKeyboardButton(
-                text="« Другая площадка",
+                text=BTN_OTHER_LOCATION,
                 callback_data=f"{date_prefix}{date_str}",
             )
         ],
         [
             InlineKeyboardButton(
-                text="🗓 Выбрать другую дату",
+                text=BTN_CHOOSE_OTHER_DATE,
                 callback_data=back_cb,
             )
         ],

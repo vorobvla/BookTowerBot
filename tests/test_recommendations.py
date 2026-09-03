@@ -100,9 +100,9 @@ def test_recommendation_keyboards():
     kb = get_categories_inline_keyboard(categories)
     assert len(kb.inline_keyboard) == 2
     assert kb.inline_keyboard[0][0].text == "📚 Нонфикшн"
-    assert kb.inline_keyboard[0][0].callback_data == f"{CB_REC_CATEGORY_PREFIX}Нонфикшн"
+    assert kb.inline_keyboard[0][0].callback_data == f"{CB_REC_CATEGORY_PREFIX}0"
     assert kb.inline_keyboard[1][0].text == "📚 Для детей"
-    assert kb.inline_keyboard[1][0].callback_data == f"{CB_REC_CATEGORY_PREFIX}Для детей"
+    assert kb.inline_keyboard[1][0].callback_data == f"{CB_REC_CATEGORY_PREFIX}1"
 
     details_kb = get_recommendation_details_keyboard()
     assert len(details_kb.inline_keyboard) == 1
@@ -209,3 +209,27 @@ def test_recommendations_one_class_per_module_imports():
     assert PackageBook is DirectBook
     assert PackageCategory is DirectCategory
     assert PackageService is DirectService
+
+
+@pytest.mark.asyncio
+async def test_long_recommendation_category_name_callback_under_64_bytes():
+    """Ensure dynamic recommendation category keyboards do not exceed Telegram's 64-byte limit."""
+    long_cat = "Очень длинная категория художественной и документальной литературы с описаниями"
+    assert len(f"rec_cat:{long_cat}".encode("utf-8")) > 64
+
+    kb = get_categories_inline_keyboard([long_cat])
+    for row in kb.inline_keyboard:
+        for btn in row:
+            assert len(btn.callback_data.encode("utf-8")) <= 64
+
+    service = RecommendationsService()
+    recs = Recommendations(service=service)
+    service.get_categories = lambda: [RecommendationCategory(name=long_cat, emoji="📚", books=[])]
+
+    query = AsyncMock()
+    query.data = kb.inline_keyboard[0][0].callback_data  # "rec_cat:0"
+    query.edit_message_text = AsyncMock()
+
+    await recs.handle_callback_query(query)
+    query.edit_message_text.assert_awaited_once()
+    assert long_cat in query.edit_message_text.call_args.kwargs["text"]
