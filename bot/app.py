@@ -20,6 +20,7 @@ from bot.handlers import (
     start_handler,
     text_message_handler,
     timetable_handler,
+    wishlist_handler,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(CommandHandler(["children", "children_activity", "kids"], children_activity_handler))
     app.add_handler(CommandHandler(["recommendations", "recs"], recommendations_handler))
     app.add_handler(CommandHandler(["participants", "stands", "vendors", "part"], participants_handler))
+    app.add_handler(CommandHandler(["wishlist", "getlist", "addbook", "editbook", "removebook", "deletebook"], wishlist_handler))
 
     # Callback query handler for inline keyboard buttons
     app.add_handler(CallbackQueryHandler(button_callback_handler))

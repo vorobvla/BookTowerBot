@@ -10,6 +10,7 @@ from bot.sections.participants import Participants
 from bot.sections.recommendations import Recommendations
 from bot.sections.start import Start
 from bot.sections.timetable import Timetable
+from bot.sections.wishlist import Wishlist
 
 
 class SectionRegistry:
@@ -24,6 +25,7 @@ class SectionRegistry:
             ChildrenActivity(),
             Recommendations(),
             Participants(),
+            Wishlist(),
         ]
 
     def find_by_command(self, command: str) -> Optional[BaseSection]:

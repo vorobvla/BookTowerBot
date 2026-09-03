@@ -9,6 +9,7 @@ from bot.sections.recommendations import Recommendations, RecommendationsSection
 from bot.sections.registry import SectionRegistry, default_registry
 from bot.sections.start import Start, StartSection
 from bot.sections.timetable import Timetable, TimetableSection
+from bot.sections.wishlist import Wishlist, WishlistSection
 
 __all__ = [
     "BaseSection",
@@ -26,6 +27,8 @@ __all__ = [
     "RecommendationsSection",
     "Participants",
     "ParticipantsSection",
+    "Wishlist",
+    "WishlistSection",
     "SectionRegistry",
     "default_registry",
 ]

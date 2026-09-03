@@ -10,6 +10,9 @@ from bot.content import (
     BTN_SHOW_PARTICIPANTS,
     BTN_SHOW_STANDS,
     BTN_TIMETABLE,
+    BTN_WISHLIST,
+    BTN_WISHLIST_ADD,
+    BTN_WISHLIST_GET,
     BUTTON_CALLBACK_MAP,
     CB_CHILDREN_ACTIVITY,
     CB_HELP,
@@ -19,6 +22,9 @@ from bot.content import (
     CB_STANDS,
     CB_STAND_PREFIX,
     CB_TIMETABLE,
+    CB_WISHLIST,
+    CB_WISHLIST_ADD,
+    CB_WISHLIST_GET,
 )
 from bot.keyboards import (
     get_main_inline_keyboard,
@@ -46,6 +52,10 @@ from bot.timetable.keyboards import (
     get_locations_inline_keyboard,
     get_timetable_details_keyboard,
 )
+from bot.wishlist.keyboards import (
+    WISHLIST_CALLBACK_MAP,
+    get_wishlist_inline_keyboard,
+)
 
 
 def test_get_main_reply_keyboard():
@@ -56,7 +66,8 @@ def test_get_main_reply_keyboard():
     assert buttons == [
         [BTN_MAP, BTN_TIMETABLE],
         [BTN_CHILDREN_ACTIVITY, BTN_RECOMMENDATIONS],
-        [BTN_PARTICIPANTS, BTN_HELP],
+        [BTN_PARTICIPANTS, BTN_WISHLIST],
+        [BTN_HELP],
     ]
 
 
@@ -70,7 +81,8 @@ def test_get_main_inline_keyboard():
     expected = [
         [(BTN_MAP, CB_MAP), (BTN_TIMETABLE, CB_TIMETABLE)],
         [(BTN_CHILDREN_ACTIVITY, CB_CHILDREN_ACTIVITY), (BTN_RECOMMENDATIONS, CB_RECOMMENDATIONS)],
-        [(BTN_PARTICIPANTS, CB_PARTICIPANTS), (BTN_HELP, CB_HELP)],
+        [(BTN_PARTICIPANTS, CB_PARTICIPANTS), (BTN_WISHLIST, CB_WISHLIST)],
+        [(BTN_HELP, CB_HELP)],
     ]
     assert inline_buttons == expected
 
@@ -168,3 +180,14 @@ def test_submodule_inline_keyboards_callback_maps():
     assert other_date_btn.text == BTN_CHOOSE_OTHER_DATE
     assert other_date_btn.callback_data == TIMETABLE_CALLBACK_MAP[BTN_CHOOSE_OTHER_DATE]
     assert other_date_btn.callback_data != other_date_btn.text
+
+    # Wishlist navigation
+    wish_kb = get_wishlist_inline_keyboard()
+    add_btn = wish_kb.inline_keyboard[0][0]
+    get_btn = wish_kb.inline_keyboard[0][1]
+    assert add_btn.text == BTN_WISHLIST_ADD
+    assert add_btn.callback_data == WISHLIST_CALLBACK_MAP[BTN_WISHLIST_ADD]
+    assert add_btn.callback_data != add_btn.text
+    assert get_btn.text == BTN_WISHLIST_GET
+    assert get_btn.callback_data == WISHLIST_CALLBACK_MAP[BTN_WISHLIST_GET]
+    assert get_btn.callback_data != get_btn.text
