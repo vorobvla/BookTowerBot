@@ -18,16 +18,15 @@ RUN mkdir -p /app/assets  \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code and entrypoint
-COPY entrypoint.sh .
+# Copy application code
+COPY main.py .
 COPY bot/ bot/
 COPY admin/ admin/
 COPY doc/ doc/
 COPY auth_approval/ auth_approval/
 
 # Set permissions and create non-root user for security
-RUN chmod +x entrypoint.sh && \
-    useradd -m -u 1000 appuser && \
+RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
@@ -35,5 +34,6 @@ USER appuser
 # Expose admin console port
 EXPOSE 8080
 
-# Entry command to run both admin and bot scripts concurrently
-ENTRYPOINT ["./entrypoint.sh"]
+# Entry command to run root main.py with the proper arguments
+ENTRYPOINT ["python", "main.py"]
+CMD ["--host", "0.0.0.0", "--port", "8080", "--assets-path", "/app/assets"]

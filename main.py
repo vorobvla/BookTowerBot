@@ -1,77 +1,23 @@
-"""Main entry point for running BookTowerBot."""
+"""Main entry point for BookTower.
+
+Starts both the admin panel and Telegram bot as Python modules.
+"""
 
 import argparse
-import asyncio
-import logging
+import signal
+import subprocess
 import sys
-from pathlib import Path
-from dotenv import load_dotenv
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
-
-from bot.config import Config
-from bot.app import build_application
-from bot.content import (
-    BTN_HELP,
-    BTN_MAP,
-    BTN_RECOMMENDATIONS,
-    BTN_TIMETABLE,
-    START_MESSAGE,
-    UNKNOWN_COMMAND_MESSAGE,
-)
-from bot.sections import default_registry
-
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
-
-
-def run_local_interactive_cli() -> None:
-    """Run an interactive local CLI simulation of the bot for local testing."""
-    print("==================================================")
-    print(" 📚 BookTowerBot - Local Simulation Mode")
-    print("==================================================")
-    print("Simulating bot interactions in the terminal.")
-    print("Available simulated inputs:")
-    print("  Commands: /start, /map, /timetables, /recommendations, /help")
-    print(f"  Buttons:  '{BTN_MAP}', '{BTN_TIMETABLE}', '{BTN_RECOMMENDATIONS}', '{BTN_HELP}'")
-    print("Type 'exit' or 'quit' to end simulation.\n")
-
-    # Initial start message
-    print(f"[Bot]:\n{START_MESSAGE}\n")
-    print(f"[Buttons Available]: [{BTN_MAP}] [{BTN_TIMETABLE}] [{BTN_RECOMMENDATIONS}] [{BTN_HELP}]\n")
-
-    while True:
-        try:
-            user_input = input("[You] > ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nExiting local simulation.")
-            break
-
-        if not user_input:
-            continue
-
-        if user_input.lower() in {"exit", "quit"}:
-            print("Ending local simulation.")
-            break
-
-        section = default_registry.find_by_text(user_input) or default_registry.find_by_command(user_input)
-        if section:
-            print(f"\n[Bot]:\n{section.get_display_text()}\n")
-        else:
-            print(f"\n[Bot]:\n{UNKNOWN_COMMAND_MESSAGE}\n")
 
 
 def main() -> None:
-    """Parse arguments and start the bot or local simulation."""
-    parser = argparse.ArgumentParser(description="BookTowerBot")
+    """Parse arguments and start admin and bot modules concurrently."""
+    parser = argparse.ArgumentParser(
+        description="BookTower - Central Launcher for Bot and Admin Console",
+    )
     parser.add_argument(
         "--token",
         type=str,
-        default="",
+        default=None,
         help="Telegram Bot API Token (overrides TELEGRAM_BOT_TOKEN environment variable)",
     )
     parser.add_argument(
@@ -80,40 +26,91 @@ def main() -> None:
         help="Run local interactive CLI simulation without connecting to Telegram servers",
     )
     parser.add_argument(
-        "--assetsPath",
+        "--host",
         type=str,
-        default=".assets",
+        default=None,
+        help="Admin console host address to bind (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Admin console port to listen on (default: 8080)",
+    )
+    parser.add_argument(
+        "--auth-db-path",
+        "--authDbPath",
+        dest="auth_db_path",
+        type=str,
+        default=None,
+        help="Path to SQLite auth database",
+    )
+    parser.add_argument(
+        "--assets-path",
+        "--assetsPath",
+        dest="assets_path",
+        type=str,
+        default=None,
         help="Path to the assets directory (overrides ASSETS_PATH environment variable)",
     )
 
     args = parser.parse_args()
 
+    # Build argument list for admin module
+    admin_cmd = [sys.executable, "-m", "admin"]
+    if args.host:
+        admin_cmd.extend(["--host", args.host])
+    if args.port is not None:
+        admin_cmd.extend(["--port", str(args.port)])
+    if args.auth_db_path:
+        admin_cmd.extend(["--auth-db-path", args.auth_db_path])
+    if args.assets_path:
+        admin_cmd.extend(["--assets-path", args.assets_path])
+
+    # Build argument list for bot module
+    bot_cmd = [sys.executable, "-m", "bot"]
+    if args.token:
+        bot_cmd.extend(["--token", args.token])
     if args.local:
-        run_local_interactive_cli()
-        return
+        bot_cmd.append("--local")
+    if args.assets_path:
+        bot_cmd.extend(["--assets-path", args.assets_path])
 
-    config = Config.from_env()
-    token = args.token.strip() or config.bot_token
+    admin_process = subprocess.Popen(admin_cmd)
+    bot_process = subprocess.Popen(bot_cmd)
 
-    if not token:
-        logger.warning("No TELEGRAM_BOT_TOKEN provided.")
-        print(
-            "\n[Notice] No Telegram bot token specified!\n"
-            "To run the live bot:\n"
-            "  export TELEGRAM_BOT_TOKEN='your_token_here'\n"
-            "  python main.py\n"
-            "Or run directly with:\n"
-            "  python main.py --token 'your_token_here'\n\n"
-            "To test locally right now without a token, use:\n"
-            "  python main.py --local\n"
-            "Or run the automated unit test suite with:\n"
-            "  pytest\n"
-        )
-        sys.exit(1)
+    def shutdown_processes(*args) -> None:
+        for proc in (admin_process, bot_process):
+            if proc.poll() is None:
+                proc.terminate()
 
-    logger.info("Starting BookTowerBot...")
-    app = build_application(token)
-    app.run_polling()
+    signal.signal(signal.SIGINT, shutdown_processes)
+    signal.signal(signal.SIGTERM, shutdown_processes)
+
+    # Wait for either process to exit
+    while True:
+        if admin_process.poll() is not None:
+            if bot_process.poll() is None:
+                bot_process.terminate()
+            break
+        if bot_process.poll() is not None:
+            if admin_process.poll() is None:
+                admin_process.terminate()
+            break
+        try:
+            bot_process.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            pass
+
+    # Ensure all processes have stopped cleanly
+    shutdown_processes()
+    for proc in (admin_process, bot_process):
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+    sys.exit(bot_process.returncode if bot_process.returncode is not None else 0)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ class AdminServer:
 
     def start(self, background: bool = False) -> None:
         """Start the HTTP server on configured host and port."""
+        ThreadingHTTPServer.allow_reuse_address = True
         handler_cls = type("BoundAdminHttpHandler", (AdminHttpHandler,), {"router": self.router})
         self._server = ThreadingHTTPServer((self.config.host, self.config.port), handler_cls)
 

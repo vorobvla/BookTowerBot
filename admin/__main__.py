@@ -1,6 +1,7 @@
 """CLI entry point for running the Admin web console."""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
@@ -14,24 +15,28 @@ from admin.config import AdminConfig
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="BookTower Admin Console")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind (default: 0.0.0.0)")
-    parser.add_argument("--port", type=int, default=8080, help="Port to listen on (default: 8080)")
-    parser.add_argument("--auth-db-path", type=str, default=None, help="Path to SQLite auth database")
+    parser.add_argument("--host", type=str, default=None, help="Host address to bind (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=None, help="Port to listen on (default: 8080)")
+    parser.add_argument("--auth-db-path", "--authDbPath", dest="auth_db_path", type=str, default=None, help="Path to SQLite auth database")
+    parser.add_argument("--assets-path", "--assetsPath", dest="assets_path", type=str, default=None, help="Path to assets directory")
 
     args = parser.parse_args()
+    if args.assets_path:
+        os.environ["ASSETS_PATH"] = args.assets_path
+
     env_config = AdminConfig.from_env()
 
     config = AdminConfig(
-        host=args.host,
-        port=args.port,
+        host=args.host or env_config.host,
+        port=args.port if args.port is not None else env_config.port,
         auth_db_path=args.auth_db_path or env_config.auth_db_path,
-        assets_path=env_config.assets_path,
+        assets_path=args.assets_path or env_config.assets_path,
         recs_path=env_config.recs_path,
         timetables_path=env_config.timetables_path,
     )
 
     app = AdminApp(config)
-    print(f"🚀 BookTower Admin Console starting on http://{args.host}:{args.port}")
+    print(f"🚀 BookTower Admin Console starting on http://{config.host}:{config.port}")
     print(f"🔒 Secure Basic Authentication enabled (database: '{config.auth_db_path}')")
 
     try:
