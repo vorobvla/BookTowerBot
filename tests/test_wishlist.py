@@ -159,12 +159,18 @@ def test_get_user_id_hashing(monkeypatch):
 # ==============================================================================
 
 
-@pytest.fixture
-def temp_service():
+@pytest.fixture(autouse=True)
+def temp_service(monkeypatch):
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         db_path = tmp.name
+    monkeypatch.setenv("WISHLIST_DB_PATH", db_path)
+    monkeypatch.setenv("WISHLIST_SALT", "test_salt")
     service = WishlistService(db_path=db_path, salt="test_salt")
+    old_service = getattr(wishlist_section, "service", None)
+    wishlist_section.service = service
     yield service
+    if old_service is not None:
+        wishlist_section.service = old_service
     if os.path.exists(db_path):
         os.remove(db_path)
 
@@ -219,7 +225,7 @@ def test_format_wishlist_text(temp_service):
     temp_service.add_book(user_id, title="Гарри Поттер")
     temp_service.add_book(user_id, title="Властелин Колец")
     text = temp_service.format_wishlist_text(user_id)
-    assert "Ваш список покупок" in text
+    assert "Ваш вишлист" in text
     assert "1. *«Гарри Поттер»*" in text
     assert "2. *«Властелин Колец»*" in text
 
@@ -324,7 +330,7 @@ def test_wishlist_books_inline_keyboard():
 
     kb_remove = get_wishlist_books_inline_keyboard(books, action="remove")
     assert kb_remove.inline_keyboard[0][0].callback_data == "wl_rm_b:1"
-    assert "🗑" in kb_remove.inline_keyboard[0][0].text
+    assert "➖" in kb_remove.inline_keyboard[0][0].text
 
 
 def test_book_attributes_inline_keyboard():
@@ -343,8 +349,8 @@ def test_book_attributes_inline_keyboard():
 
 
 @pytest.mark.asyncio
-async def test_wishlist_section_matching():
-    sec = Wishlist()
+async def test_wishlist_section_matching(temp_service):
+    sec = Wishlist(service=temp_service)
     assert sec.name == "wishlist"
     assert sec.matches_command("wishlist")
     assert sec.matches_command("/wishlist")
@@ -449,7 +455,8 @@ async def test_wishlist_section_callbacks(temp_service):
 
 
 @pytest.mark.asyncio
-async def test_wishlist_add_and_get_handler_flow():
+async def test_wishlist_add_and_get_handler_flow(temp_service):
+    wishlist_section.service = temp_service
     context = MagicMock()
     context.user_data = {}
 
@@ -484,7 +491,8 @@ async def test_wishlist_add_and_get_handler_flow():
 
 
 @pytest.mark.asyncio
-async def test_wishlist_edit_and_remove_handler_flow():
+async def test_wishlist_edit_and_remove_handler_flow(temp_service):
+    wishlist_section.service = temp_service
     context = MagicMock()
     context.user_data = {}
 

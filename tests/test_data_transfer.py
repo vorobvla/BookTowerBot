@@ -122,7 +122,7 @@ class TestAdminDataTransferService:
         # Verify zip content
         with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
             namelist = zf.namelist()
-            assert "db/.admin_users.db" in namelist
+            assert "db/.admin_users.db" not in namelist
             assert "db/wishlist.db" in namelist
             assert "map/map.png" in namelist
             assert "map/active_map.json" in namelist
