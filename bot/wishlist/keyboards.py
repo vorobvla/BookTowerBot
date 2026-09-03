@@ -147,7 +147,7 @@ def get_wishlist_books_inline_keyboard(books: List[Book], action: str = "edit") 
     """Generate inline keyboard listing books for editing or removal."""
     keyboard: List[List[InlineKeyboardButton]] = []
     prefix = CB_WL_EDIT_BOOK_PREFIX if action == "edit" else CB_WL_REMOVE_BOOK_PREFIX
-    icon = "📖" if action == "edit" else "🗑"
+    icon = "📖" if action == "edit" else "➖"
 
     for idx, book in enumerate(books, start=1):
         display_title = book.title
