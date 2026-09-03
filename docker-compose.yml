@@ -3,6 +3,8 @@ services:
     build: .
     container_name: booktower_bot
     restart: unless-stopped
+    ports:
+      - "${ADMIN_PORT:-8080}:${ADMIN_PORT:-8080}"
     mem_reservation: 200M
     deploy:
       resources:
@@ -14,3 +16,5 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - ASSETS_PATH=${ASSETS_PATH}
       - MEMORY_LIMIT=${MEMORY_LIMIT:-200M}
+      - ADMIN_HOST=${ADMIN_HOST:-0.0.0.0}
+      - ADMIN_PORT=${ADMIN_PORT:-8080}

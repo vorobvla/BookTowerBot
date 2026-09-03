@@ -26,13 +26,15 @@ A simple, modular, and testable Telegram bot built to assist visitors at a Book 
 
 ```
 .
-├── Dockerfile           # Production container definition
-├── docker-compose.yml   # Multi-container / deployment orchestration
+├── Dockerfile           # Production container definition (runs Bot and Admin Console)
+├── docker-compose.yml   # Container deployment orchestration
+├── entrypoint.sh        # Container startup script running Admin and Bot concurrently
 ├── .dockerignore        # Docker build context exclusions
 ├── .env.example         # Template for environment variables
 ├── .gitignore           # Git ignore rules
 ├── main.py              # Application entry point (live polling & local CLI simulation)
 ├── requirements.txt     # Python dependencies
+├── admin/               # Admin web console and REST API
 ├── bot/
 │   ├── __init__.py
 │   ├── app.py           # Application builder & handler registration
@@ -42,6 +44,7 @@ A simple, modular, and testable Telegram bot built to assist visitors at a Book 
 │   └── keyboards.py     # Reply and Inline keyboard builders
 └── tests/
     ├── __init__.py
+    ├── test_admin.py      # Admin console tests
     ├── test_app.py        # Application setup and handler registration tests
     ├── test_content.py    # Message content validation tests
     ├── test_handlers.py   # Asynchronous handler and interaction tests
@@ -89,7 +92,9 @@ python main.py --token "your_telegram_bot_token_here"
 
 ---
 
-##  Running with Docker
+## 🐳 Running with Docker
+
+The container runs both the **Telegram Bot** and the **Admin Web Console** concurrently.
 
 ### Using Docker Compose (Recommended)
 
@@ -97,19 +102,24 @@ python main.py --token "your_telegram_bot_token_here"
    ```bash
    cp .env.example .env
    ```
-2. Edit `.env` and set your `TELEGRAM_BOT_TOKEN`:
+2. Edit `.env` and set your `TELEGRAM_BOT_TOKEN` and optional admin settings:
    ```env
    TELEGRAM_BOT_TOKEN=your_token_here
+   ADMIN_PORT=8080
    ```
-3. Build and start the bot container in background:
+3. Build and start the container in background:
    ```bash
    docker compose up -d --build
    ```
-4. View logs:
+4. Access the Admin Web Console in your browser:
+   ```
+   http://localhost:8080
+   ```
+5. View logs:
    ```bash
    docker compose logs -f
    ```
-5. Stop the bot:
+6. Stop the services:
    ```bash
    docker compose down
    ```
@@ -118,13 +128,13 @@ python main.py --token "your_telegram_bot_token_here"
 
 ```bash
 # Build the image
-docker build -t booktowerbot .
+docker build -t booktower .
 
-# Run container with environment variable and 200MB soft memory limit
-docker run -d --name booktower_bot --restart unless-stopped --memory-reservation 200M -e TELEGRAM_BOT_TOKEN="your_token_here" booktowerbot
+# Run container with environment variable, exposed admin port, and 200MB soft memory limit
+docker run -d --name booktower_app -p 8080:8080 --restart unless-stopped --memory-reservation 200M -e TELEGRAM_BOT_TOKEN="your_token_here" booktower
 
 # Check logs
-docker logs -f booktower_bot
+docker logs -f booktower_app
 ```
 
 ---

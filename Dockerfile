@@ -5,18 +5,35 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
+#Create assets directory for static files
+RUN mkdir -p /app/assets  \
+    /app/assets/db  \
+    /app/assets/map  \
+    /app/assets/participants  \
+    /app/assets/recs  \
+    /app/assets/timetables
+
 
 # Install dependencies first to leverage Docker layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY main.py .
+# Copy application code and entrypoint
+COPY entrypoint.sh .
 COPY bot/ bot/
+COPY admin/ admin/
+COPY doc/ doc/
+COPY auth_approval/ auth_approval/
 
-# Create and switch to non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Set permissions and create non-root user for security
+RUN chmod +x entrypoint.sh && \
+    useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
 USER appuser
 
-# Entry command to run the Telegram bot
-CMD ["python", "main.py"]
+# Expose admin console port
+EXPOSE 8080
+
+# Entry command to run both admin and bot scripts concurrently
+ENTRYPOINT ["./entrypoint.sh"]
