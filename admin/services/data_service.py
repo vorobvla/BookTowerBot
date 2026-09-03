@@ -15,7 +15,7 @@ from bot.content import ASSETS_PATH
 
 logger = logging.getLogger(__name__)
 
-VALID_COMPONENTS: Tuple[str, ...] = ("db", "map", "participants", "recs", "timetables")
+VALID_COMPONENTS: Tuple[str, ...] = ("map", "participants", "recs", "timetables")
 ALLOWED_MAP_EXTENSIONS: Set[str] = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"}
 IGNORE_FILENAMES: Set[str] = {".ds_store", "thumbs.db", "desktop.ini", "__macosx"}
 
@@ -57,11 +57,20 @@ class AdminDataTransferService:
         return ""
 
     def _write_assets_to_zip(self, file_or_buffer: BinaryIO) -> None:
-        """Write all assets contents into a zip archive stream."""
+        """Write all assets contents (excluding databases) into a zip archive stream."""
         with zipfile.ZipFile(file_or_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, dirs, files in os.walk(self.assets_path):
-                # Filter out hidden or cache directories
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() != "__pycache__"]
+                # Filter out hidden or cache directories, as well as db directory
+                dirs[:] = [
+                    d for d in dirs
+                    if not d.startswith(".")
+                    and d.lower() != "__pycache__"
+                    and d.lower() != "db"
+                ]
+                rel_root = os.path.relpath(root, self.assets_path)
+                root_parts = rel_root.split(os.sep) if rel_root != "." else []
+                if "db" in [p.lower() for p in root_parts]:
+                    continue
                 for file in files:
                     if file.startswith(".") or file.lower() in IGNORE_FILENAMES:
                         continue
@@ -317,11 +326,6 @@ class AdminDataTransferService:
                 if not has_valid_map_file:
                     raise ValueError("Раздел 'map' не содержит поддерживаемых файлов карты (PNG, JPG, SVG и т.д.)")
 
-            elif comp == "db":
-                # Expect db files
-                if not comp_files:
-                    raise ValueError("Раздел 'db' пуст")
-
     def import_assets_from_zip(
         self,
         zip_source: Union[str, Path, bytes, BinaryIO],
@@ -332,7 +336,7 @@ class AdminDataTransferService:
 
         Args:
             zip_source: Zip file path, bytes, or file stream.
-            component: Target component(s) ('all', 'db', 'map', 'participants', 'recs', 'timetables').
+            component: Target component(s) ('all', 'map', 'participants', 'recs', 'timetables').
             components: Optional alias for component(s).
 
         Returns:

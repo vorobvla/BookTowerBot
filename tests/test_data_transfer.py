@@ -123,7 +123,8 @@ class TestAdminDataTransferService:
         with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
             namelist = zf.namelist()
             assert "db/.admin_users.db" not in namelist
-            assert "db/wishlist.db" in namelist
+            assert "db/wishlist.db" not in namelist
+            assert not any(n.startswith("db/") for n in namelist)
             assert "map/map.png" in namelist
             assert "map/active_map.json" in namelist
             assert "participants/participants.json" in namelist
@@ -148,12 +149,16 @@ class TestAdminDataTransferService:
 
         val = service.validate_zip_structure(zip_bytes)
         assert val["is_valid"] is True
-        assert set(val["components_found"]) == {"db", "map", "participants", "recs", "timetables"}
+        assert set(val["components_found"]) == {"map", "participants", "recs", "timetables"}
 
         # Partial validation for specific component
         val_recs = service.validate_zip_structure(zip_bytes, component="recs")
         assert val_recs["is_valid"] is True
         assert val_recs["target_component"] == "recs"
+
+        # db component should be rejected
+        with pytest.raises(ValueError, match="Неизвестный компонент 'db'"):
+            service.validate_zip_structure(zip_bytes, component="db")
 
     def test_validate_zip_with_wrapper_root_folder(self, sample_assets_dir):
         """Verify zip files with a root 'assets/' or 'booktower/' wrapper folder are parsed cleanly."""
@@ -216,7 +221,11 @@ class TestAdminDataTransferService:
 
         assert result["status"] == "ok"
         assert result["component"] == "all"
-        assert len(result["imported_components"]) == 5
+        assert len(result["imported_components"]) == 4
+        assert set(result["imported_components"]) == {"recs", "timetables", "participants", "map"}
+
+        # Verify db was NOT imported or overwritten from zip
+        assert not os.path.exists(os.path.join(sample_assets_dir, "db", "test.db"))
 
         # Verify filesystem updated
         with open(os.path.join(sample_assets_dir, "recs", "recs.json"), "r", encoding="utf-8") as f:
@@ -321,7 +330,7 @@ class TestAdminWebDataEndpoints:
         assert '<select name="component"' not in html
         assert 'type="checkbox"' in html
         assert 'name="components"' in html
-        assert 'value="db"' in html
+        assert 'value="db"' not in html
         assert 'value="map"' in html
         assert 'value="participants"' in html
         assert 'value="recs"' in html
@@ -568,3 +577,38 @@ class TestAdminCLI:
         with patch("sys.exit") as mock_exit:
             admin_main(["import", "non_existent_file.zip", "--assets-path", sample_assets_dir])
             mock_exit.assert_called_once_with(1)
+
+    def test_db_directory_completely_excluded(self, sample_assets_dir):
+        # 1. Ensure export does not package anything from db
+        service = AdminDataTransferService(sample_assets_dir)
+        zip_bytes = service.export_assets_to_zip()
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+            namelist = zf.namelist()
+            assert not any(n.startswith("db") for n in namelist)
+
+        # 2. Ensure db component is rejected when requested
+        with pytest.raises(ValueError, match="Неизвестный компонент 'db'"):
+            service.import_assets_from_zip(zip_bytes, component="db")
+
+        # 3. Ensure zip with db directory does not overwrite or create assets/db files on full import
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("recs/recs.json", json.dumps({"recs": []}))
+            zf.writestr("timetables/01012027.json", json.dumps({"date": "01012027", "events": []}))
+            zf.writestr("participants/participants.json", json.dumps({"participants": []}))
+            zf.writestr("map/map.png", b"PNG")
+            zf.writestr("db/wishlist.db", b"CORRUPT_DB_OVERWRITE_ATTEMPT")
+
+        db_path = os.path.join(sample_assets_dir, "db", "wishlist.db")
+        assert os.path.exists(db_path)
+        with open(db_path, "rb") as f:
+            original_db_content = f.read()
+
+        service.import_assets_from_zip(buf.getvalue(), component="all")
+
+        with open(db_path, "rb") as f:
+            current_db_content = f.read()
+
+        # Database must remain completely untouched
+        assert current_db_content == original_db_content
+        assert current_db_content != b"CORRUPT_DB_OVERWRITE_ATTEMPT"

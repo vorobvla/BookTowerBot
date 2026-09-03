@@ -11,8 +11,7 @@ RUN mkdir -p /app/assets  \
     /app/assets/map  \
     /app/assets/participants  \
     /app/assets/recs  \
-    /app/assets/timetables \
-    /app/.auth_db
+    /app/assets/timetables
 
 
 # Install dependencies first to leverage Docker layer caching
