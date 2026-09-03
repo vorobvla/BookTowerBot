@@ -164,7 +164,15 @@ class AdminRequest:
                         "content_type": part_content_type,
                     }
                 else:
-                    self.form_data[field_name] = content.decode("utf-8", errors="replace")
+                    text_val = content.decode("utf-8", errors="replace")
+                    if field_name in self.form_data:
+                        existing = self.form_data[field_name]
+                        if isinstance(existing, list):
+                            existing.append(text_val)
+                        else:
+                            self.form_data[field_name] = [existing, text_val]
+                    else:
+                        self.form_data[field_name] = text_val
 
     def json(self) -> Optional[Any]:
         """Return parsed JSON body if present."""
@@ -177,6 +185,17 @@ class AdminRequest:
             except Exception:
                 return None
         return None
+
+    def get_form_list(self, name: str) -> list:
+        """Get list of values for a given form key (handles single value, list, or missing)."""
+        val = self.form_data.get(name)
+        if val is None:
+            val = self.form_data.get(f"{name}[]")
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return [str(item) for item in val if item is not None]
+        return [str(val)]
 
     def get_cookie(self, name: str) -> Optional[str]:
         """Get value of specified cookie name."""

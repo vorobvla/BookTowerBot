@@ -1,5 +1,6 @@
 """Request router dispatching endpoints and enforcing auth middleware."""
 
+from datetime import datetime
 import json
 import logging
 import re
@@ -12,6 +13,7 @@ from admin.config import AdminConfig
 from admin.llm.transfer_to_json import InputType, LLMJsonConverter
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
+from admin.services.data_service import AdminDataTransferService
 from admin.services.map_service import AdminMapService
 from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
@@ -33,6 +35,7 @@ class AdminRouter:
         timetable_service: Optional[AdminTimetableService] = None,
         map_service: Optional[AdminMapService] = None,
         participants_service: Optional[AdminParticipantsService] = None,
+        data_service: Optional[AdminDataTransferService] = None,
     ):
         self.config = config or AdminConfig.from_env()
         self.authenticator = authenticator or AdminAuthenticator(self.config)
@@ -41,6 +44,7 @@ class AdminRouter:
         self.timetable_service = timetable_service or AdminTimetableService(self.config.timetables_path)
         self.map_service = map_service or AdminMapService(self.config.map_dir)
         self.participants_service = participants_service or AdminParticipantsService(self.config.participants_path)
+        self.data_service = data_service or AdminDataTransferService(self.config.assets_path)
 
     def route(self, request: AdminRequest) -> AdminResponse:
         """Route request to the appropriate handler."""
@@ -131,6 +135,14 @@ class AdminRouter:
             return self._handle_get_locations(request)
         if path in ("/locations/rename", "/locations/update") and request.method == "POST":
             return self._handle_post_locations_rename(request)
+
+        # Data Import & Export Web Routes
+        if path == "/data":
+            return self._handle_get_data(request)
+        if path in ("/data/export", "/data/download"):
+            return self._handle_data_export(request)
+        if path == "/data/import" and request.method == "POST":
+            return self._handle_post_data_import(request)
 
         # Map Web Routes
         if path == "/map":
@@ -831,6 +843,12 @@ class AdminRouter:
         if path in ("/api/llm/load", "/api/llm/import") and request.method == "POST":
             return self._handle_post_llm_load(request)
 
+        if path == "/api/data/export":
+            return self._handle_data_export(request)
+
+        if path == "/api/data/import" and request.method == "POST":
+            return self._handle_api_data_import(request)
+
         return AdminResponse.json({"error": "Endpoint not found"}, status_code=404)
 
     # --- LLM Data Import Handlers ---
@@ -1077,3 +1095,103 @@ class AdminRouter:
                 redirect_target = f"/timetables/{last_date_key}" if last_date_key else "/timetables"
 
         return count, redirect_target
+
+    # --- Data Import & Export Handlers ---
+
+    def _handle_get_data(self, request: AdminRequest) -> AdminResponse:
+        error = request.query_params.get("error")
+        message = request.query_params.get("msg")
+        html = AdminTemplateRenderer.render_data_page(
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
+        return AdminResponse.html(html)
+
+    def _handle_data_export(self, request: AdminRequest) -> AdminResponse:
+        try:
+            zip_bytes = self.data_service.export_assets_to_zip()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"booktower_assets_{timestamp}.zip"
+            return AdminResponse.binary(
+                data=zip_bytes if isinstance(zip_bytes, bytes) else b"",
+                content_type="application/zip",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                },
+            )
+        except Exception as e:
+            logger.error("Error during assets export: %s", e, exc_info=True)
+            return AdminResponse.redirect("/data?error=" + quote(f"Ошибка экспорта: {e}"))
+
+    def _handle_post_data_import(self, request: AdminRequest) -> AdminResponse:
+        file_obj = request.files.get("zip_file") or request.files.get("file")
+        if not file_obj or not file_obj.get("content"):
+            return AdminResponse.redirect("/data?error=" + quote("Пожалуйста, выберите ZIP-файл для импорта"))
+
+        components = request.get_form_list("components") or request.get_form_list("component")
+        if not components:
+            raw_comp = request.form_data.get("components") or request.form_data.get("component")
+            if raw_comp:
+                components = [raw_comp] if isinstance(raw_comp, str) else list(raw_comp)
+
+        if not components:
+            return AdminResponse.redirect("/data?error=" + quote("Пожалуйста, выберите хотя бы один раздел для импорта"))
+
+        try:
+            result = self.data_service.import_assets_from_zip(file_obj["content"], components=components)
+            self._reload_all_services()
+            imported_comps = result.get("imported_components", [])
+            from admin.services.data_service import VALID_COMPONENTS
+            if imported_comps and len(imported_comps) < len(VALID_COMPONENTS):
+                comp_label = f" (разделы: {', '.join(imported_comps)})"
+            else:
+                comp_label = " (все разделы)"
+            msg = f"Данные успешно импортированы{comp_label}! Заменено файлов: {result.get('files_count', 0)}"
+            return AdminResponse.redirect("/data?msg=" + quote(msg))
+        except Exception as e:
+            logger.error("Error during assets import: %s", e, exc_info=True)
+            return AdminResponse.redirect("/data?error=" + quote(str(e)))
+
+    def _handle_api_data_import(self, request: AdminRequest) -> AdminResponse:
+        file_obj = request.files.get("zip_file") or request.files.get("file")
+        json_body = request.json() if isinstance(request.json(), dict) else {}
+        components = (
+            json_body.get("components")
+            or json_body.get("component")
+            or request.get_form_list("components")
+            or request.get_form_list("component")
+            or request.form_data.get("components")
+            or request.form_data.get("component")
+            or "all"
+        )
+        content_bytes = None
+
+        if file_obj and file_obj.get("content"):
+            content_bytes = file_obj["content"]
+        elif request.body:
+            content_bytes = request.body
+
+        if not content_bytes:
+            return AdminResponse.json({"error": "No ZIP file provided"}, status_code=400)
+
+        try:
+            result = self.data_service.import_assets_from_zip(content_bytes, components=components)
+            self._reload_all_services()
+            return AdminResponse.json({
+                "status": "ok",
+                "message": "Assets imported successfully",
+                "component": result.get("component", "all"),
+                "files_count": result.get("files_count", 0),
+                "imported_components": result.get("imported_components", []),
+            })
+        except Exception as e:
+            return AdminResponse.json({"error": str(e)}, status_code=400)
+
+    def _reload_all_services(self) -> None:
+        """Discard in-memory staged changes to reload updated assets from disk."""
+        self.recs_service.discard_changes()
+        self.timetable_service.discard_changes()
+        self.map_service.discard_changes()
+        self.participants_service.discard_changes()

@@ -37,6 +37,7 @@ class AdminTemplateRenderer:
         recs_active = "active" if active_tab == "recs" else ""
         map_active = "active" if active_tab == "map" else ""
         participants_active = "active" if active_tab == "participants" else ""
+        data_active = "active" if active_tab == "data" else ""
 
         if return_to_path is None:
             if active_tab == "map":
@@ -47,6 +48,8 @@ class AdminTemplateRenderer:
                 return_to_path = "/participants"
             elif active_tab == "locations":
                 return_to_path = "/locations"
+            elif active_tab == "data":
+                return_to_path = "/data"
             else:
                 return_to_path = "/timetables"
 
@@ -82,6 +85,7 @@ class AdminTemplateRenderer:
             .replace("{{ recs_active }}", recs_active)
             .replace("{{ map_active }}", map_active)
             .replace("{{ participants_active }}", participants_active)
+            .replace("{{ data_active }}", data_active)
             .replace("{{ return_to_path }}", html.escape(return_to_path))
             .replace("{{ unsaved_changes_banner }}", banner_html)
             .replace("{{ unsaved_changes_bar_notice }}", bar_notice_html)
@@ -596,4 +600,36 @@ class AdminTemplateRenderer:
             content=content,
             active_tab="participants",
             has_unsaved_changes=has_unsaved_changes,
+        )
+
+    @classmethod
+    def render_data_page(
+        cls,
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
+    ) -> str:
+        """Render data import and export page."""
+        template = cls.load_template("data.html")
+        alerts = []
+        alert_tpl = cls.load_template("alert.html")
+        if error:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error))
+            )
+        if message:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        alerts_html = "".join(alerts)
+
+        content = template.replace("{{ alerts_html }}", alerts_html)
+        return cls._render_layout(
+            title="Импорт и экспорт данных",
+            content=content,
+            active_tab="data",
+            has_unsaved_changes=has_unsaved_changes,
+            return_to_path="/data",
         )

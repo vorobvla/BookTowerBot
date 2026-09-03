@@ -1,0 +1,142 @@
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2>💾 Импорт и экспорт данных</h2>
+        <p style="color: var(--text-muted);">Создавайте резервные копии всех ассетов и загружайте архивы данных целиком или по отдельным разделам.</p>
+    </div>
+</div>
+
+{{ alerts_html }}
+
+<div class="grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 1.5rem;">
+    <!-- Export Card -->
+    <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+            <h3 style="margin-bottom: 0.75rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
+                <span>📤 Экспорт всех данных</span>
+            </h3>
+            <p style="font-size: 0.9rem; color: var(--text); margin-bottom: 1rem;">
+                Скачайте данные бота. Архив содержит актуальную структуру всех файлов с информацией для пользователей и бд админов :
+            </p>
+            <ul style="font-size: 0.85rem; color: var(--text-muted); margin-left: 1.25rem; margin-bottom: 1.25rem; line-height: 1.7;">
+                <li><code>db/</code> — базы данных (пользователи, вишлисты)</li>
+                <li><code>map/</code> — карты ярмарки</li>
+                <li><code>participants/</code> — список участников </li>
+                <li><code>recs/</code> — рекомендации книг </li>
+                <li><code>timetables/</code> — расписания мероприятий </li>
+            </ul>
+        </div>
+        <div>
+            <a href="/data/export" class="btn" style="width: 100%; text-align: center; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem; text-decoration: none;">
+                ⬇️ Скачать архив assets.zip
+            </a>
+        </div>
+    </div>
+
+    <!-- Import Card -->
+    <div class="card" style="background: #f8fafc; border-color: #cbd5e1; margin-bottom: 0;">
+        <h3 style="margin-bottom: 0.75rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
+            <span>📥 Импорт данных из архива</span>
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Загрузите ZIP-архив с ассетами. Вы можете выполнить полный импорт или заменить только выбранный раздел.
+        </p>
+        <form method="POST" action="/data/import" enctype="multipart/form-data" onsubmit="return validateDataImport(this);">
+            <div class="form-group">
+                <label class="required" for="zipFileInput">Файл ZIP-архива</label>
+                <input type="file" name="zip_file" id="zipFileInput" class="form-control" accept=".zip,application/zip" required>
+            </div>
+
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <label style="font-weight: 600; margin-bottom: 0;">Разделы для импорта:</label>
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.75rem; height: auto; line-height: 1.4;" onclick="setAllImportCheckboxes(true)">Выбрать все</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.75rem; height: auto; line-height: 1.4;" onclick="setAllImportCheckboxes(false)">Снять все</button>
+                    </div>
+                </div>
+                <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; margin-bottom: 0;">
+                        <input type="checkbox" name="components" value="db" checked class="import-component-cb" style="width: 16px; height: 16px; cursor: pointer;">
+                        <span>🗄️ Базы данных (<code>db/</code>)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; margin-bottom: 0;">
+                        <input type="checkbox" name="components" value="map" checked class="import-component-cb" style="width: 16px; height: 16px; cursor: pointer;">
+                        <span>🏢 Карта ярмарки (<code>map/</code>)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; margin-bottom: 0;">
+                        <input type="checkbox" name="components" value="participants" checked class="import-component-cb" style="width: 16px; height: 16px; cursor: pointer;">
+                        <span>👥 Участники (<code>participants/</code>)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; margin-bottom: 0;">
+                        <input type="checkbox" name="components" value="recs" checked class="import-component-cb" style="width: 16px; height: 16px; cursor: pointer;">
+                        <span>📚 Рекомендации (<code>recs/</code>)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; margin-bottom: 0;">
+                        <input type="checkbox" name="components" value="timetables" checked class="import-component-cb" style="width: 16px; height: 16px; cursor: pointer;">
+                        <span>📅 Расписания (<code>timetables/</code>)</span>
+                    </label>
+                </div>
+                <p style="font-size: 0.8rem; color: #b45309; margin-top: 0.4rem; margin-bottom: 0;">
+                    ⚠️ Внимание: файлы выбранных разделов будут полностью перезаписаны данными из архива!
+                </p>
+            </div>
+
+            <button type="submit" class="btn btn-danger" style="width: 100%; margin-top: 0.75rem; height: 42px; font-weight: 600; background-color: var(--primary);">
+                ⬆ Импортировать данные
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom: 0.75rem;">ℹ️ О структуре архива</h3>
+    <p style="font-size: 0.9rem; color: var(--text); line-height: 1.6;">
+        Вы также можете использовать командную строку не сервере для импорта и экспорта:
+    </p>
+    <div style="background: #1e1b4b; color: #e2e8f0; padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-top: 0.75rem; line-height: 1.8;">
+        <div># Экспорт всех данных в ZIP:</div>
+        <div style="color: #a5f3fc;">python -m admin export [assets_backup.zip]</div>
+        <div style="margin-top: 0.5rem;"># Полный импорт:</div>
+        <div style="color: #a5f3fc;">python -m admin import assets_backup.zip</div>
+        <div style="margin-top: 0.5rem;"># Частичный импорт (например, только расписания или карта):</div>
+        <div style="color: #a5f3fc;">python -m admin import assets_backup.zip --component timetables</div>
+        <div style="margin-top: 0.5rem;"># Выборочный импорт нескольких разделов:</div>
+        <div style="color: #a5f3fc;">python -m admin import assets_backup.zip --component recs timetables</div>
+    </div>
+</div>
+
+<script>
+function setAllImportCheckboxes(checked) {
+    var checkboxes = document.querySelectorAll('.import-component-cb');
+    for (var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = checked;
+    }
+}
+
+function validateDataImport(form) {
+    var fileInput = form.querySelector('input[name="zip_file"]');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert('Пожалуйста, выберите ZIP-архив для загрузки');
+        return false;
+    }
+    var checkedBoxes = form.querySelectorAll('.import-component-cb:checked');
+    if (checkedBoxes.length === 0) {
+        alert('Пожалуйста, выберите хотя бы один раздел для импорта');
+        return false;
+    }
+    var namesMap = {
+        'db': 'Базы данных (db)',
+        'map': 'Карта ярмарки (map)',
+        'participants': 'Участники (participants)',
+        'recs': 'Рекомендации (recs)',
+        'timetables': 'Расписания (timetables)'
+    };
+    var selected = [];
+    for (var i = 0; i < checkedBoxes.length; i++) {
+        var val = checkedBoxes[i].value;
+        selected.push(namesMap[val] || val);
+    }
+    var targetText = (checkedBoxes.length === 5) ? 'Все разделы (полная замена)' : ('Выбранные разделы: ' + selected.join(', '));
+    return confirm('Вы уверены, что хотите импортировать данные?\n\n' + targetText + '\n\nСуществующие файлы выбранных разделов будут заменены.');
+}
+</script>

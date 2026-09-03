@@ -7,7 +7,9 @@ from admin.auth.session_manager import AdminSessionManager
 from admin.config import AdminConfig
 from admin.server.router import AdminRouter
 from admin.server.server import AdminServer
+from admin.services.data_service import AdminDataTransferService
 from admin.services.map_service import AdminMapService
+from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
 
@@ -22,6 +24,8 @@ class AdminApp:
         self.recs_service = AdminRecsService(self.config.recs_path)
         self.timetable_service = AdminTimetableService(self.config.timetables_path)
         self.map_service = AdminMapService(self.config.map_dir)
+        self.participants_service = AdminParticipantsService(self.config.participants_path)
+        self.data_service = AdminDataTransferService(self.config.assets_path)
 
         self.router = AdminRouter(
             config=self.config,
@@ -30,6 +34,8 @@ class AdminApp:
             recs_service=self.recs_service,
             timetable_service=self.timetable_service,
             map_service=self.map_service,
+            participants_service=self.participants_service,
+            data_service=self.data_service,
         )
 
         self.server = AdminServer(router=self.router, config=self.config)
