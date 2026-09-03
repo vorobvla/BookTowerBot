@@ -15,6 +15,7 @@ from bot.content import (
     BTN_WISHLIST,
     BTN_WISHLIST_ADD,
     BTN_WISHLIST_ADD_ISBN,
+    BTN_WISHLIST_ADD_NOTE,
     BTN_WISHLIST_CANCEL,
     BTN_WISHLIST_CONFIRM,
     BTN_WISHLIST_EDIT,
@@ -59,6 +60,7 @@ from bot.wishlist.keyboards import (
     CB_WL_EDIT_BOOK_PREFIX,
     CB_WL_REMOVE_BOOK_PREFIX,
     WISHLIST_CALLBACK_MAP,
+    get_book_added_inline_keyboard,
     get_book_attributes_inline_keyboard,
     get_isbn_confirm_inline_keyboard,
     get_isbn_input_inline_keyboard,
@@ -886,3 +888,92 @@ async def test_wishlist_photo_barcode_not_detected(temp_service):
     reply_markup = update_photo.effective_message.reply_text.call_args.kwargs["reply_markup"]
     cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
     assert CB_WISHLIST_ADD in cbs
+
+
+def test_get_book_added_inline_keyboard():
+    """Verify get_book_added_inline_keyboard includes note adding option and menu return."""
+    markup = get_book_added_inline_keyboard(42)
+    buttons = [btn for row in markup.inline_keyboard for btn in row]
+    callbacks = [btn.callback_data for btn in buttons]
+    texts = [btn.text for btn in buttons]
+
+    assert "wl_ed_a:42:user_notes" in callbacks
+    assert CB_WISHLIST in callbacks
+    assert BTN_WISHLIST_ADD_NOTE in texts
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_title_and_offer_notes_flow(temp_service):
+    """After adding a book by title, bot offers to add notes and lets user write a note."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    context.user_data = {"awaiting_wishlist_title": True}
+
+    # Step 1: User sends book title
+    update_title = MagicMock(spec=Update)
+    update_title.effective_message = AsyncMock(text="Гарри Поттер и Философский камень")
+    update_title.effective_user = MagicMock(id=888999)
+    await text_message_handler(update_title, context)
+
+    user_id = get_user_id(888999)
+    books = temp_service.get_wishlist(user_id)
+    assert len(books) == 1
+    added_book = books[0]
+    assert added_book.title == "Гарри Поттер и Философский камень"
+
+    # Verify markup has add note button for the added book
+    reply_markup = update_title.effective_message.reply_text.call_args.kwargs["reply_markup"]
+    cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert f"wl_ed_a:{added_book.id}:user_notes" in cbs
+
+    # Step 2: User clicks "Add note"
+    query_note = MagicMock()
+    query_note.data = f"wl_ed_a:{added_book.id}:user_notes"
+    query_note.from_user = MagicMock(id=888999)
+    query_note.edit_message_text = AsyncMock()
+    await wishlist_section.handle_callback_query(query_note, context=context)
+
+    assert context.user_data.get("awaiting_wishlist_edit") == {
+        "book_id": added_book.id,
+        "attribute": "user_notes",
+    }
+    prompt_text = query_note.edit_message_text.call_args.kwargs["text"]
+    assert "Заметка" in prompt_text
+
+    # Step 3: User sends note text
+    update_note = MagicMock(spec=Update)
+    update_note.effective_message = AsyncMock(text="Купить иллюстрированное издание Росмэн")
+    update_note.effective_user = MagicMock(id=888999)
+    await text_message_handler(update_note, context)
+
+    # Verify note updated in database
+    updated = temp_service.get_book(user_id, added_book.id)
+    assert updated.user_notes == "Купить иллюстрированное издание Росмэн"
+    reply_text = update_note.effective_message.reply_text.call_args.kwargs["text"]
+    assert "Купить иллюстрированное издание Росмэн" in reply_text
+
+
+@pytest.mark.asyncio
+async def test_wishlist_add_isbn_confirm_and_offer_notes_flow(temp_service):
+    """After confirming ISBN book addition, bot offers to add notes."""
+    wishlist_section.service = temp_service
+    context = MagicMock()
+    found_book = Book(title="Solaris", authors="Stanislaw Lem", isbn="9780156027601", year=1961)
+    context.user_data = {"pending_isbn_book": found_book}
+
+    query_confirm = MagicMock()
+    query_confirm.data = CB_WL_CONFIRM_ISBN
+    query_confirm.from_user = MagicMock(id=999888)
+    query_confirm.edit_message_text = AsyncMock()
+    await wishlist_section.handle_callback_query(query_confirm, context=context)
+
+    user_id = get_user_id(999888)
+    books = temp_service.get_wishlist(user_id)
+    assert len(books) == 1
+    added_book = books[0]
+    assert added_book.title == "Solaris"
+
+    # Verify confirmation markup offers note addition
+    reply_markup = query_confirm.edit_message_text.call_args.kwargs["reply_markup"]
+    cbs = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    assert f"wl_ed_a:{added_book.id}:user_notes" in cbs

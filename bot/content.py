@@ -103,7 +103,7 @@ WISHLIST_ADD_PROMPT = (
 
 WISHLIST_ISBN_PROMPT = (
     "🔢 *Добавление книги по ISBN*\n\n"
-    "Пожалуйста, отправьте ISBN книги (10 или 13 цифр) сообщением или пришлите фотографию штрих-кода:"
+    "Пожалуйста, отправьте ISBN книги (10 или 13 цифр) сообщением или пришлите фотографию штрих-кода (распознавание займет немного времени):"
 )
 
 WISHLIST_BARCODE_NOT_FOUND_MESSAGE = (
@@ -150,6 +150,7 @@ BTN_RECOMMENDATIONS = "📚 Рекомендации"
 BTN_PARTICIPANTS = "👥 Участники"
 BTN_WISHLIST = "📝 Вишлист"
 BTN_WISHLIST_ADD_ISBN = "🔢 По ISBN"
+BTN_WISHLIST_ADD_NOTE = "📝 Добавить заметку"
 BTN_WISHLIST_CONFIRM = "✅ Добавить в вишлист"
 BTN_WISHLIST_CANCEL = "❌ Отмена"
 BTN_WISHLIST_ADD = "➕ Добавить книгу"

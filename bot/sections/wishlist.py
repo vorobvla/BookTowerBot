@@ -28,6 +28,7 @@ from bot.wishlist.keyboards import (
     CB_WL_EDIT_ATTR_PREFIX,
     CB_WL_EDIT_BOOK_PREFIX,
     CB_WL_REMOVE_BOOK_PREFIX,
+    get_book_added_inline_keyboard,
     get_book_attributes_inline_keyboard,
     get_isbn_input_inline_keyboard,
     get_wishlist_add_inline_keyboard,
@@ -148,7 +149,7 @@ class Wishlist(BaseSection):
                     f"✅ Книга *«{added.title}»* успешно добавлена в ваш вишлист!\n\n"
                     f"{added.format_entry()}"
                 )
-                await self._edit_or_reply(query, msg, get_wishlist_inline_keyboard())
+                await self._edit_or_reply(query, msg, get_book_added_inline_keyboard(added.id))
             else:
                 await self._edit_or_reply(query, WISHLIST_MESSAGE, get_wishlist_inline_keyboard())
 

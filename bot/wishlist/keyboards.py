@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.content import (
     BTN_WISHLIST_ADD,
     BTN_WISHLIST_ADD_ISBN,
+    BTN_WISHLIST_ADD_NOTE,
     BTN_WISHLIST_CANCEL,
     BTN_WISHLIST_CONFIRM,
     BTN_WISHLIST_EDIT,
@@ -166,6 +167,25 @@ def get_wishlist_books_inline_keyboard(books: List[Book], action: str = "edit") 
             callback_data=CB_WISHLIST,
         )
     ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_book_added_inline_keyboard(book_id: int) -> InlineKeyboardMarkup:
+    """Generate inline keyboard after a book is successfully added, offering to add notes."""
+    keyboard: List[List[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=BTN_WISHLIST_ADD_NOTE,
+                callback_data=f"{CB_WL_EDIT_ATTR_PREFIX}{book_id}:user_notes",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="« Меню вишлиста",
+                callback_data=CB_WISHLIST,
+            ),
+        ],
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 

@@ -34,6 +34,7 @@ from bot.sections import (
 from bot.wishlist.isbn import clean_isbn, decode_barcode_from_image, lookup_book_by_isbn
 from bot.wishlist.keyboards import (
     BOOK_ATTRIBUTES,
+    get_book_added_inline_keyboard,
     get_book_attributes_inline_keyboard,
     get_isbn_confirm_inline_keyboard,
     get_isbn_input_inline_keyboard,
@@ -243,11 +244,11 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             return
         else:
             context.user_data["awaiting_wishlist_title"] = False
-            wishlist_section.service.add_book(user_id, title=text)
+            added_book = wishlist_section.service.add_book(user_id, title=text)
             await update.effective_message.reply_text(
                 text=f"✅ Книга *«{text}»* добавлена в ваш вишлист!",
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=wishlist_section.get_reply_markup(inline=True),
+                reply_markup=get_book_added_inline_keyboard(added_book.id),
             )
             return
 
