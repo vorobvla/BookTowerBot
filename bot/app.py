@@ -34,11 +34,11 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("help", help_handler))
     app.add_handler(CommandHandler("map", map_handler))
-    app.add_handler(CommandHandler("timetables", timetable_handler))
+    app.add_handler(CommandHandler(["timetables", "timetable", "schedule"], timetable_handler))
     app.add_handler(CommandHandler(["children", "children_activity", "kids"], children_activity_handler))
     app.add_handler(CommandHandler(["masterclasses", "masterclass", "mc", "master_classes"], master_classes_handler))
     app.add_handler(CommandHandler(["recommendations", "recs"], recommendations_handler))
-    app.add_handler(CommandHandler(["participants", "stands", "vendors", "part"], participants_handler))
+    app.add_handler(CommandHandler(["participants", "stands", "stand", "vendors", "vendor", "part"], participants_handler))
     app.add_handler(CommandHandler(["wishlist", "getlist", "addbook", "editbook", "removebook", "deletebook", "isbn", "addisbn"], wishlist_handler))
 
     # Callback query handler for inline keyboard buttons

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
-from bot.content import ASSETS_PATH, MAP_DIR, MAP_PATH, PARTICIPANTS_PATH, RECS_PATH, TIMETABLES_PATH
+from bot.content import ANALYTICS_DB_PATH, ASSETS_PATH, MAP_DIR, MAP_PATH, PARTICIPANTS_PATH, RECS_PATH, TIMETABLES_PATH, WISHLIST_DB_PATH
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
@@ -34,6 +34,8 @@ class AdminConfig:
     participants_path: str = PARTICIPANTS_PATH
     map_dir: str = MAP_DIR
     map_path: str = MAP_PATH
+    analytics_db_path: str = ANALYTICS_DB_PATH
+    wishlist_db_path: str = WISHLIST_DB_PATH
 
     @classmethod
     def from_env(cls) -> "AdminConfig":
@@ -78,6 +80,8 @@ class AdminConfig:
         participants_path = _resolve_relative_path(os.getenv("PARTICIPANTS_PATH", os.path.join(assets_path, "participants", "participants.json")).strip())
         map_dir = _resolve_relative_path(os.getenv("MAP_DIR", os.path.join(assets_path, "map")).strip())
         map_path = _resolve_relative_path(os.getenv("MAP_PATH", os.path.join(map_dir, "map.png")).strip())
+        analytics_db_path = _resolve_relative_path(os.getenv("ANALYTICS_DB_PATH", os.path.join(assets_path, "db", "analytics.db")).strip())
+        wishlist_db_path = _resolve_relative_path(os.getenv("WISHLIST_DB_PATH", os.path.join(assets_path, "db", "wishlist.db")).strip())
 
         return cls(
             host=host,
@@ -91,4 +95,6 @@ class AdminConfig:
             participants_path=participants_path,
             map_dir=map_dir,
             map_path=map_path,
+            analytics_db_path=analytics_db_path,
+            wishlist_db_path=wishlist_db_path,
         )

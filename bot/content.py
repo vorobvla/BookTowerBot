@@ -30,6 +30,7 @@ TIMETABLES_PATH = _resolve_relative_path(os.getenv("TIMETABLES_PATH", os.path.jo
 RECS_PATH = _resolve_relative_path(os.getenv("RECS_PATH", os.path.join(ASSETS_PATH, "recs", "recs.json")))
 PARTICIPANTS_PATH = _resolve_relative_path(os.getenv("PARTICIPANTS_PATH", os.path.join(ASSETS_PATH, "participants", "participants.json")))
 WISHLIST_DB_PATH = _resolve_relative_path(os.getenv("WISHLIST_DB_PATH", os.path.join(ASSETS_PATH, "db", "wishlist.db")))
+ANALYTICS_DB_PATH = _resolve_relative_path(os.getenv("ANALYTICS_DB_PATH", os.path.join(ASSETS_PATH, "db", "analytics.db")))
 
 START_MESSAGE = (
     "📚 *Добро пожаловать в BookTowerBot!*\n\n"

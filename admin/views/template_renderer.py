@@ -37,6 +37,7 @@ class AdminTemplateRenderer:
         recs_active = "active" if active_tab == "recs" else ""
         map_active = "active" if active_tab == "map" else ""
         participants_active = "active" if active_tab == "participants" else ""
+        analytics_active = "active" if active_tab == "analytics" else ""
         data_active = "active" if active_tab == "data" else ""
 
         if return_to_path is None:
@@ -48,6 +49,8 @@ class AdminTemplateRenderer:
                 return_to_path = "/participants"
             elif active_tab == "locations":
                 return_to_path = "/locations"
+            elif active_tab == "analytics":
+                return_to_path = "/analytics"
             elif active_tab == "data":
                 return_to_path = "/data"
             else:
@@ -85,6 +88,7 @@ class AdminTemplateRenderer:
             .replace("{{ recs_active }}", recs_active)
             .replace("{{ map_active }}", map_active)
             .replace("{{ participants_active }}", participants_active)
+            .replace("{{ analytics_active }}", analytics_active)
             .replace("{{ data_active }}", data_active)
             .replace("{{ return_to_path }}", html.escape(return_to_path))
             .replace("{{ unsaved_changes_banner }}", banner_html)
@@ -684,4 +688,126 @@ class AdminTemplateRenderer:
             active_tab="data",
             has_unsaved_changes=has_unsaved_changes,
             return_to_path="/data",
+        )
+
+    @classmethod
+    def render_analytics(
+        cls,
+        summary: Dict[str, Any],
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
+    ) -> str:
+        """Render UX analytics and metrics page."""
+        template = cls.load_template("analytics.html")
+        alerts = []
+        alert_tpl = cls.load_template("alert.html")
+        if error:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error))
+            )
+        if message:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        alerts_html = "".join(alerts)
+
+        events = summary.get("events", {})
+        users = summary.get("users", {})
+        paths = summary.get("paths", [])
+        wishlist = summary.get("wishlist", [])
+        menu_buttons = summary.get("menu_buttons", [])
+        text_commands = summary.get("text_commands", [])
+
+        # Format menu buttons rows
+        if not menu_buttons:
+            menu_buttons_rows = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Нет данных о нажатиях кнопок меню</td></tr>'
+        else:
+            mb_rows = []
+            for idx, mb in enumerate(menu_buttons, 1):
+                mb_rows.append(
+                    f'<tr>'
+                    f'<td style="text-align: center; color: var(--text-muted);">{idx}</td>'
+                    f'<td><strong>{html.escape(mb["button"])}</strong></td>'
+                    f'<td><code style="font-size: 0.85rem; background: #f3f4f6; padding: 2px 6px; border-radius: 4px;">{html.escape(mb.get("callback", ""))}</code></td>'
+                    f'<td style="text-align: center;"><span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600;">{mb["count"]}</span></td>'
+                    f'</tr>'
+                )
+            menu_buttons_rows = "".join(mb_rows)
+
+        # Format text commands rows
+        if not text_commands:
+            text_commands_rows = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Нет данных об использовании команд</td></tr>'
+        else:
+            tc_rows = []
+            for idx, tc in enumerate(text_commands, 1):
+                tc_rows.append(
+                    f'<tr>'
+                    f'<td style="text-align: center; color: var(--text-muted);">{idx}</td>'
+                    f'<td><code style="font-family: monospace; background: #ede9fe; color: #5b21b6; padding: 3px 8px; border-radius: 4px; font-weight: 600;">{html.escape(tc["command"])}</code></td>'
+                    f'<td>{html.escape(tc.get("description", ""))}</td>'
+                    f'<td style="text-align: center;"><span class="badge" style="background: #f5f3ff; color: #6d28d9; font-weight: 600;">{tc["count"]}</span></td>'
+                    f'</tr>'
+                )
+            text_commands_rows = "".join(tc_rows)
+
+        # Format paths rows
+        if not paths:
+            paths_rows = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Нет зафиксированных путей пользователей</td></tr>'
+        else:
+            p_rows = []
+            for idx, p in enumerate(paths, 1):
+                p_rows.append(
+                    f'<tr>'
+                    f'<td style="text-align: center; color: var(--text-muted);">{idx}</td>'
+                    f'<td><span style="font-family: monospace; background: #eef2ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; font-weight: 500; font-size: 0.9rem;">{html.escape(p["path"])}</span></td>'
+                    f'<td style="text-align: center; font-weight: 600;">{p["count"]}</td>'
+                    f'<td style="text-align: center;"><span class="badge" style="background: #e0e7ff; color: #3730a3; font-weight: 600;">{p["percentage"]}%</span></td>'
+                    f'</tr>'
+                )
+            paths_rows = "".join(p_rows)
+
+        # Format wishlist rows
+        if not wishlist:
+            wishlist_rows = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Пока нет добавленных книг в вишлисты</td></tr>'
+        else:
+            w_rows = []
+            for idx, w in enumerate(wishlist, 1):
+                isbn_val = html.escape(w.get("isbn") or "—")
+                w_rows.append(
+                    f'<tr>'
+                    f'<td style="text-align: center; color: var(--text-muted);">{idx}</td>'
+                    f'<td><strong>{html.escape(w["title"])}</strong></td>'
+                    f'<td><code style="font-size: 0.85rem;">{isbn_val}</code></td>'
+                    f'<td style="text-align: center;"><span class="badge" style="background: #ecfdf5; color: #047857; font-weight: 600;">{w["count"]}</span></td>'
+                    f'</tr>'
+                )
+            wishlist_rows = "".join(w_rows)
+
+        content = (
+            template.replace("{{ alerts_html }}", alerts_html)
+            .replace("{{ total_users }}", str(users.get("total_users", 0)))
+            .replace("{{ total_chats }}", str(users.get("total_chats", 0)))
+            .replace("{{ inline_keyboard_events }}", str(events.get("inline_keyboard_events", 0)))
+            .replace("{{ commands_count }}", str(events.get("commands", 0)))
+            .replace("{{ unrecognized_messages }}", str(events.get("unrecognized_messages", 0)))
+            .replace("{{ total_events }}", str(events.get("total_events", 0)))
+            .replace("{{ menu_buttons_count }}", str(len(menu_buttons)))
+            .replace("{{ menu_buttons_rows }}", menu_buttons_rows)
+            .replace("{{ text_commands_count }}", str(len(text_commands)))
+            .replace("{{ text_commands_rows }}", text_commands_rows)
+            .replace("{{ paths_count }}", str(len(paths)))
+            .replace("{{ paths_rows }}", paths_rows)
+            .replace("{{ wishlist_count }}", str(len(wishlist)))
+            .replace("{{ wishlist_rows }}", wishlist_rows)
+        )
+
+        return cls._render_layout(
+            title="UX Аналитика",
+            content=content,
+            active_tab="analytics",
+            has_unsaved_changes=has_unsaved_changes,
+            return_to_path="/analytics",
         )

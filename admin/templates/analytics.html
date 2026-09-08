@@ -1,0 +1,169 @@
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2>📊 UX Аналитика и поведение пользователей</h2>
+        <p style="color: var(--text-muted);">Статистика активности в боте, популярные пользовательские сценарии и популярность книг в вишлистах.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <form method="POST" action="/analytics/refresh" style="margin: 0;">
+            <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer;">
+                <span>🔄</span>
+                <span>Обновить аналитику</span>
+            </button>
+        </form>
+        <a href="/analytics/export" class="btn" style="display: flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none;">
+            <span>⬇</span>
+            <span>Скачать отчет (ZIP)</span>
+        </a>
+    </div>
+</div>
+
+{{ alerts_html }}
+
+<!-- Top KPI Cards -->
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="card" style="margin-bottom: 0; padding: 1.25rem; border-left: 4px solid #4f46e5;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">👥 Пользователи</div>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #1e1b4b;">{{ total_users }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Уникальных профилей</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 1.25rem; border-left: 4px solid #06b6d4;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">💬 Взаимодействия</div>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #0e7490;">{{ total_chats }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Сессий / чатов</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 1.25rem; border-left: 4px solid #10b981;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">🔘 Inline-кнопки</div>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #047857;">{{ inline_keyboard_events }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Нажатий клавиатуры</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 1.25rem; border-left: 4px solid #8b5cf6;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">⚡ Команды</div>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #6d28d9;">{{ commands_count }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Выполненных команд</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 1.25rem; border-left: 4px solid #f59e0b;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">❓ Нераспознанные</div>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #b45309;">{{ unrecognized_messages }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Неизвестных сообщений</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; padding: 1.25rem; border-left: 4px solid #ec4899;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">🔢 Всего событий</div>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #be185d;">{{ total_events }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Зафиксированных действий</div>
+    </div>
+</div>
+
+<!-- Specific Counters: Inline Buttons & Text Commands Grid -->
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+    <!-- Inline Menu Buttons Section -->
+    <div class="card" style="margin-bottom: 0; border-color: #bae6fd;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+                <h3 style="margin: 0; color: #0369a1; display: flex; align-items: center; gap: 8px;">
+                    <span>🔘 Основные inline-кнопки меню</span>
+                    <span style="background: #e0f2fe; color: #0284c7; font-size: 0.8rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">{{ menu_buttons_count }}</span>
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">
+                    Количество нажатий на каждую из основных кнопок inline-меню бота.
+                </p>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;">#</th>
+                    <th>Кнопка меню</th>
+                    <th style="width: 150px;">Действие (Callback)</th>
+                    <th style="width: 90px; text-align: center;">Нажатий</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ menu_buttons_rows }}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Text Commands Section -->
+    <div class="card" style="margin-bottom: 0; border-color: #ddd6fe;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+                <h3 style="margin: 0; color: #6d28d9; display: flex; align-items: center; gap: 8px;">
+                    <span>⚡ Текстовые команды</span>
+                    <span style="background: #ede9fe; color: #7c3aed; font-size: 0.8rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">{{ text_commands_count }}</span>
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">
+                    Статистика вызовов текстовых команд пользователями в боте.
+                </p>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;">#</th>
+                    <th style="width: 140px;">Команда</th>
+                    <th>Описание / Раздел</th>
+                    <th style="width: 90px; text-align: center;">Вызовов</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ text_commands_rows }}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Generalized User Paths Section -->
+<div class="card" style="margin-bottom: 1.5rem; border-color: #c7d2fe;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+            <h3 style="margin: 0; color: #3730a3; display: flex; align-items: center; gap: 8px;">
+                <span>🛤 Популярные пути пользователей (User Paths)</span>
+                <span style="background: #e0e7ff; color: #4338ca; font-size: 0.8rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">{{ paths_count }}</span>
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">
+                Агрегированные последовательности команд и переходов между разделами бота.
+            </p>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50px; text-align: center;">#</th>
+                <th>Последовательность команд (Сценарий)</th>
+                <th style="width: 160px; text-align: center;">Пользователей</th>
+                <th style="width: 120px; text-align: center;">Доля</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ paths_rows }}
+        </tbody>
+    </table>
+</div>
+
+<!-- Wishlisted Books Aggregation Section -->
+<div class="card" style="border-color: #cbd5e1;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+            <h3 style="margin: 0; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                <span>📚 Популярные книги в вишлистах</span>
+                <span style="background: #f1f5f9; color: #334155; font-size: 0.8rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">{{ wishlist_count }}</span>
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">
+                Сводный список книг, добавленных в список покупок/вишлист (анонимизировано, без привязки к отдельным пользователям).
+            </p>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50px; text-align: center;">#</th>
+                <th>Название книги</th>
+                <th style="width: 180px;">ISBN</th>
+                <th style="width: 160px; text-align: center;">Добавлений</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ wishlist_rows }}
+        </tbody>
+    </table>
+</div>

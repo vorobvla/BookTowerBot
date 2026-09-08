@@ -36,6 +36,10 @@ class Participants(BaseSection):
         "/stands",
         "/vendors",
         "/part",
+        "📍 информация о стендах",
+        "информация о стендах",
+        "📍 информация о стендах участников",
+        "информация о стендах участников",
     }
     use_reply_keyboard = False
 

@@ -18,6 +18,7 @@ from admin.services.map_service import AdminMapService
 from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
+from admin.services.analytics_service import AdminAnalyticsService
 from admin.views.template_renderer import AdminTemplateRenderer
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class AdminRouter:
         map_service: Optional[AdminMapService] = None,
         participants_service: Optional[AdminParticipantsService] = None,
         data_service: Optional[AdminDataTransferService] = None,
+        analytics_service: Optional[AdminAnalyticsService] = None,
     ):
         self.config = config or AdminConfig.from_env()
         self.authenticator = authenticator or AdminAuthenticator(self.config)
@@ -45,6 +47,10 @@ class AdminRouter:
         self.map_service = map_service or AdminMapService(self.config.map_dir)
         self.participants_service = participants_service or AdminParticipantsService(self.config.participants_path)
         self.data_service = data_service or AdminDataTransferService(self.config.assets_path)
+        self.analytics_service = analytics_service or AdminAnalyticsService(
+            db_path=self.config.analytics_db_path,
+            wishlist_db_path=self.config.wishlist_db_path,
+        )
 
     def route(self, request: AdminRequest) -> AdminResponse:
         """Route request to the appropriate handler."""
@@ -143,6 +149,18 @@ class AdminRouter:
             return self._handle_data_export(request)
         if path == "/data/import" and request.method == "POST":
             return self._handle_post_data_import(request)
+
+        # Analytics Web Routes
+        if path == "/analytics":
+            return self._handle_get_analytics(request)
+        if path in ("/analytics/refresh", "/analytics/update"):
+            if request.method == "POST":
+                return self._handle_post_analytics_refresh(request)
+            return self._handle_get_analytics_refresh(request)
+        if path in ("/analytics/export", "/analytics/export/zip", "/analytics/zip"):
+            return self._handle_get_analytics_zip(request)
+        if path in ("/analytics/export/csv", "/analytics/csv"):
+            return self._handle_get_analytics_csv(request)
 
         # Map Web Routes
         if path == "/map":
@@ -881,6 +899,36 @@ class AdminRouter:
         if path == "/api/data/import" and request.method == "POST":
             return self._handle_api_data_import(request)
 
+        if path in ("/api/analytics/flush", "/api/analytics/refresh") and request.method == "POST":
+            self.analytics_service.flush()
+            try:
+                from bot.analytics.service import default_analytics_service
+                default_analytics_service.flush()
+            except Exception:
+                pass
+            return AdminResponse.json({"status": "ok", "message": "Analytics flushed successfully"})
+
+        if path == "/api/analytics":
+            return AdminResponse.json(self.analytics_service.get_full_summary())
+
+        if path == "/api/analytics/buttons":
+            return AdminResponse.json({"buttons": self.analytics_service.get_menu_button_counts()})
+
+        if path == "/api/analytics/commands":
+            return AdminResponse.json({"commands": self.analytics_service.get_text_command_counts()})
+
+        if path == "/api/analytics/paths":
+            return AdminResponse.json({"paths": self.analytics_service.get_generalized_user_paths()})
+
+        if path == "/api/analytics/wishlist":
+            return AdminResponse.json({"wishlist": self.analytics_service.get_wishlist_stats()})
+
+        if path in ("/api/analytics/export", "/api/analytics/export/zip", "/api/analytics/zip"):
+            return self._handle_get_analytics_zip(request)
+
+        if path in ("/api/analytics/export/csv", "/api/analytics/csv"):
+            return self._handle_get_analytics_csv(request)
+
         return AdminResponse.json({"error": "Endpoint not found"}, status_code=404)
 
     # --- LLM Data Import Handlers ---
@@ -1229,3 +1277,69 @@ class AdminRouter:
         self.timetable_service.discard_changes()
         self.map_service.discard_changes()
         self.participants_service.discard_changes()
+
+    # --- Analytics Handlers ---
+
+    def _handle_get_analytics(self, request: AdminRequest) -> AdminResponse:
+        error = request.query_params.get("error")
+        message = request.query_params.get("msg")
+        summary = self.analytics_service.get_full_summary()
+        html = AdminTemplateRenderer.render_analytics(
+            summary=summary,
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
+        return AdminResponse.html(html)
+
+    def _handle_post_analytics_refresh(self, request: AdminRequest) -> AdminResponse:
+        try:
+            self.analytics_service.flush()
+            try:
+                from bot.analytics.service import default_analytics_service
+                default_analytics_service.flush()
+            except Exception:
+                pass
+            return AdminResponse.redirect("/analytics?msg=" + quote("Данные аналитики успешно обновлены и сохранены в БД."))
+        except Exception as e:
+            logger.error("Error refreshing analytics: %s", e, exc_info=True)
+            return AdminResponse.redirect("/analytics?error=" + quote(f"Ошибка обновления аналитики: {e}"))
+
+    def _handle_get_analytics_refresh(self, request: AdminRequest) -> AdminResponse:
+        return self._handle_post_analytics_refresh(request)
+
+    def _handle_get_analytics_zip(self, request: AdminRequest) -> AdminResponse:
+        try:
+            zip_bytes = self.analytics_service.export_zip()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"booktower_ux_analytics_{timestamp}.zip"
+            return AdminResponse(
+                body=zip_bytes,
+                status_code=200,
+                content_type="application/zip",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                },
+            )
+        except Exception as e:
+            logger.error("Error during analytics ZIP export: %s", e, exc_info=True)
+            return AdminResponse.redirect("/analytics?error=" + quote(f"Ошибка экспорта аналитики: {e}"))
+
+    def _handle_get_analytics_csv(self, request: AdminRequest) -> AdminResponse:
+        try:
+            csv_content = self.analytics_service.export_csv()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"booktower_ux_analytics_{timestamp}.csv"
+            return AdminResponse(
+                body=csv_content.encode("utf-8-sig"),
+                status_code=200,
+                content_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                },
+            )
+        except Exception as e:
+            logger.error("Error during analytics export: %s", e, exc_info=True)
+            return AdminResponse.redirect("/analytics?error=" + quote(f"Ошибка экспорта аналитики: {e}"))
