@@ -14,10 +14,14 @@ load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 from bot.config import Config
 from bot.app import build_application
 from bot.content import (
+    BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_MASTER_CLASSES,
+    BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_TIMETABLE,
+    BTN_WISHLIST,
     START_MESSAGE,
     UNKNOWN_COMMAND_MESSAGE,
 )
@@ -37,13 +41,13 @@ def run_local_interactive_cli() -> None:
     print("==================================================")
     print("Simulating bot interactions in the terminal.")
     print("Available simulated inputs:")
-    print("  Commands: /start, /map, /timetables, /recommendations, /help")
-    print(f"  Buttons:  '{BTN_MAP}', '{BTN_TIMETABLE}', '{BTN_RECOMMENDATIONS}', '{BTN_HELP}'")
+    print("  Commands: /start, /map, /timetables, /children, /masterclasses, /recommendations, /participants, /wishlist, /help")
+    print(f"  Buttons:  '{BTN_MAP}', '{BTN_TIMETABLE}', '{BTN_CHILDREN_ACTIVITY}', '{BTN_MASTER_CLASSES}', '{BTN_RECOMMENDATIONS}', '{BTN_PARTICIPANTS}', '{BTN_WISHLIST}', '{BTN_HELP}'")
     print("Type 'exit' or 'quit' to end simulation.\n")
 
     # Initial start message
     print(f"[Bot]:\n{START_MESSAGE}\n")
-    print(f"[Buttons Available]: [{BTN_MAP}] [{BTN_TIMETABLE}] [{BTN_RECOMMENDATIONS}] [{BTN_HELP}]\n")
+    print(f"[Buttons Available]: [{BTN_MAP}] [{BTN_TIMETABLE}] [{BTN_CHILDREN_ACTIVITY}] [{BTN_MASTER_CLASSES}] [{BTN_RECOMMENDATIONS}] [{BTN_PARTICIPANTS}] [{BTN_WISHLIST}] [{BTN_HELP}]\n")
 
     while True:
         try:

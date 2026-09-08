@@ -5,6 +5,7 @@ from bot.content import (
     BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_MASTER_CLASSES,
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_SHOW_PARTICIPANTS,
@@ -17,6 +18,7 @@ from bot.content import (
     CB_CHILDREN_ACTIVITY,
     CB_HELP,
     CB_MAP,
+    CB_MASTER_CLASSES,
     CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
     CB_STANDS,
@@ -32,6 +34,17 @@ from bot.keyboards import (
     get_map_inline_keyboard,
     get_stands_grid_inline_keyboard,
 )
+from bot.masterclasses.keyboards import (
+    BTN_BACK_TO_MC,
+    BTN_MC_ALL,
+    BTN_MC_FOR_CHILDREN,
+    CB_MC_FILTER_ALL,
+    CB_MC_FILTER_CHILDREN,
+    CB_MC_ITEM_PREFIX,
+    MASTER_CLASSES_CALLBACK_MAP,
+    get_master_class_details_keyboard,
+    get_master_classes_inline_keyboard,
+)
 from bot.participants.keyboards import (
     BTN_BACK_TO_PARTICIPANTS,
     PARTICIPANTS_CALLBACK_MAP,
@@ -44,6 +57,7 @@ from bot.recommendations.keyboards import (
     RECOMMENDATIONS_CALLBACK_MAP,
     get_recommendation_details_keyboard,
 )
+from bot.timetable.event import Event
 from bot.timetable.keyboards import (
     BTN_BACK_TO_DATES,
     BTN_CHOOSE_OTHER_DATE,
@@ -65,9 +79,9 @@ def test_get_main_reply_keyboard():
     buttons = [[btn.text for btn in row] for row in keyboard.keyboard]
     assert buttons == [
         [BTN_MAP, BTN_TIMETABLE],
-        [BTN_CHILDREN_ACTIVITY, BTN_RECOMMENDATIONS],
-        [BTN_PARTICIPANTS, BTN_WISHLIST],
-        [BTN_HELP],
+        [BTN_CHILDREN_ACTIVITY, BTN_MASTER_CLASSES],
+        [BTN_RECOMMENDATIONS, BTN_PARTICIPANTS],
+        [BTN_WISHLIST, BTN_HELP],
     ]
 
 
@@ -80,9 +94,9 @@ def test_get_main_inline_keyboard():
 
     expected = [
         [(BTN_MAP, CB_MAP), (BTN_TIMETABLE, CB_TIMETABLE)],
-        [(BTN_CHILDREN_ACTIVITY, CB_CHILDREN_ACTIVITY), (BTN_RECOMMENDATIONS, CB_RECOMMENDATIONS)],
-        [(BTN_PARTICIPANTS, CB_PARTICIPANTS), (BTN_WISHLIST, CB_WISHLIST)],
-        [(BTN_HELP, CB_HELP)],
+        [(BTN_CHILDREN_ACTIVITY, CB_CHILDREN_ACTIVITY), (BTN_MASTER_CLASSES, CB_MASTER_CLASSES)],
+        [(BTN_RECOMMENDATIONS, CB_RECOMMENDATIONS), (BTN_PARTICIPANTS, CB_PARTICIPANTS)],
+        [(BTN_WISHLIST, CB_WISHLIST), (BTN_HELP, CB_HELP)],
     ]
     assert inline_buttons == expected
 
@@ -191,3 +205,31 @@ def test_submodule_inline_keyboards_callback_maps():
     assert get_btn.text == BTN_WISHLIST_GET
     assert get_btn.callback_data == WISHLIST_CALLBACK_MAP[BTN_WISHLIST_GET]
     assert get_btn.callback_data != get_btn.text
+
+    # Master Classes navigation
+    ev1 = Event(time="12:00", title="Лепка из глины", is_master_class=True, is_children_activity=True)
+    ev2 = Event(time="14:00", title="Каллиграфия", is_master_class=True, is_children_activity=False)
+    mc_items = [("10092026", 0, ev1), ("11092026", 1, ev2)]
+
+    mc_kb = get_master_classes_inline_keyboard(mc_items, children_only=False)
+    assert len(mc_kb.inline_keyboard) == 3
+    assert mc_kb.inline_keyboard[0][0].text == BTN_MC_FOR_CHILDREN
+    assert mc_kb.inline_keyboard[0][0].callback_data == CB_MC_FILTER_CHILDREN
+    assert "Лепка из глины" in mc_kb.inline_keyboard[1][0].text
+    assert mc_kb.inline_keyboard[1][0].callback_data == f"{CB_MC_ITEM_PREFIX}10092026:0:0"
+    assert "Каллиграфия" in mc_kb.inline_keyboard[2][0].text
+    assert mc_kb.inline_keyboard[2][0].callback_data == f"{CB_MC_ITEM_PREFIX}11092026:1:0"
+
+    mc_kids_kb = get_master_classes_inline_keyboard([("10092026", 0, ev1)], children_only=True)
+    assert len(mc_kids_kb.inline_keyboard) == 2
+    assert mc_kids_kb.inline_keyboard[0][0].text == BTN_MC_ALL
+    assert mc_kids_kb.inline_keyboard[0][0].callback_data == CB_MC_FILTER_ALL
+    assert mc_kids_kb.inline_keyboard[1][0].callback_data == f"{CB_MC_ITEM_PREFIX}10092026:0:1"
+
+    details_kb = get_master_class_details_keyboard(children_only=False)
+    assert details_kb.inline_keyboard[0][0].text == BTN_BACK_TO_MC
+    assert details_kb.inline_keyboard[0][0].callback_data == CB_MC_FILTER_ALL
+
+    details_kids_kb = get_master_class_details_keyboard(children_only=True)
+    assert details_kids_kb.inline_keyboard[0][0].text == BTN_BACK_TO_MC
+    assert details_kids_kb.inline_keyboard[0][0].callback_data == CB_MC_FILTER_CHILDREN

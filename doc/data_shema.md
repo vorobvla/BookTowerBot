@@ -43,7 +43,8 @@ Represent a list of events for a single day. Stored in multiple files ${TIMETABL
       "participants": [<Participant name>,...],
       "organizer": "<Name of the organizer>",
       "location": "<Location of the event>",
-      "is_children_activity": <boolean true/false indicating if the event is suitable for children*>
+      "is_children_activity": <boolean true/false indicating if the event is suitable for children*>,
+      "is_master_class": <boolean true/false indicating if the event is a master-class*>
     },
     ...
   ]

@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 
 from bot.content import TIMETABLES_PATH
 from bot.timetable.day import DayTimetable
-from bot.timetable.event import Event
 
 
 class AdminTimetableService:
@@ -114,6 +113,23 @@ class AdminTimetableService:
                         locations_set.add(loc.strip())
 
         return sorted(locations_set)
+
+    def get_all_master_classes(self) -> List[Dict[str, Any]]:
+        """Collect and return all master-class events across all timetable dates."""
+        master_classes = []
+        for date_key in self.list_days():
+            data = self.get_day_dict(date_key)
+            if not data or "events" not in data or not isinstance(data["events"], list):
+                continue
+            for idx, event in enumerate(data["events"]):
+                if not isinstance(event, dict):
+                    continue
+                if event.get("is_master_class", False):
+                    item = copy.deepcopy(event)
+                    item["date_key"] = date_key
+                    item["event_index"] = idx
+                    master_classes.append(item)
+        return master_classes
 
     def get_locations_summary(self) -> List[Dict[str, Any]]:
         """Collect and return structured summary for all locations with event counts and dates."""
@@ -283,6 +299,7 @@ class AdminTimetableService:
         participants: Any = None,
         organizer: str = "",
         is_children_activity: Any = False,
+        is_master_class: Any = False,
     ) -> None:
         """Add an event to a date timetable, enforcing mandatory start time, title, and location."""
         event_dict = self._validate_and_build_event(
@@ -293,6 +310,7 @@ class AdminTimetableService:
             participants=participants,
             organizer=organizer,
             is_children_activity=is_children_activity,
+            is_master_class=is_master_class,
         )
 
         clean_date = date.strip()
@@ -314,6 +332,7 @@ class AdminTimetableService:
         participants: Any = None,
         organizer: str = "",
         is_children_activity: Any = False,
+        is_master_class: Any = False,
     ) -> None:
         """Update an event by index for a given date."""
         event_dict = self._validate_and_build_event(
@@ -324,6 +343,7 @@ class AdminTimetableService:
             participants=participants,
             organizer=organizer,
             is_children_activity=is_children_activity,
+            is_master_class=is_master_class,
         )
 
         clean_date = date.strip()
@@ -382,6 +402,36 @@ class AdminTimetableService:
         events[event_index]["is_children_activity"] = bool(is_children)
         self.save_day_dict(clean_date, data)
 
+    def toggle_event_master_class(self, date: str, event_index: int) -> bool:
+        """Toggle is_master_class flag for an event by index."""
+        clean_date = date.strip()
+        data = self.get_day_dict(clean_date)
+        if data is None:
+            raise ValueError(f"Timetable for date '{clean_date}' not found")
+
+        events = data.get("events", [])
+        if not (0 <= event_index < len(events)):
+            raise IndexError("Event index out of range")
+
+        current = bool(events[event_index].get("is_master_class", False))
+        events[event_index]["is_master_class"] = not current
+        self.save_day_dict(clean_date, data)
+        return events[event_index]["is_master_class"]
+
+    def set_event_master_class(self, date: str, event_index: int, is_master: bool) -> None:
+        """Set is_master_class flag for an event by index."""
+        clean_date = date.strip()
+        data = self.get_day_dict(clean_date)
+        if data is None:
+            raise ValueError(f"Timetable for date '{clean_date}' not found")
+
+        events = data.get("events", [])
+        if not (0 <= event_index < len(events)):
+            raise IndexError("Event index out of range")
+
+        events[event_index]["is_master_class"] = bool(is_master)
+        self.save_day_dict(clean_date, data)
+
     def _validate_and_build_event(
         self,
         time: str,
@@ -391,6 +441,7 @@ class AdminTimetableService:
         participants: Any = None,
         organizer: str = "",
         is_children_activity: Any = False,
+        is_master_class: Any = False,
     ) -> Dict[str, Any]:
         """Validate mandatory attributes (time, title, location) and construct event dictionary."""
         clean_time = self.validate_time(time)
@@ -411,6 +462,11 @@ class AdminTimetableService:
         else:
             clean_children = bool(is_children_activity)
 
+        if isinstance(is_master_class, str):
+            clean_master = is_master_class.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            clean_master = bool(is_master_class)
+
         return {
             "time": clean_time,
             "title": clean_title,
@@ -419,6 +475,7 @@ class AdminTimetableService:
             "organizer": clean_organizer,
             "location": clean_location,
             "is_children_activity": clean_children,
+            "is_master_class": clean_master,
         }
 
     @staticmethod

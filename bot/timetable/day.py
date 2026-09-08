@@ -61,6 +61,15 @@ class DayTimetable:
                 locations.append(loc)
         return locations
 
+    def get_master_classes(self, children_only: bool = False) -> List[Event]:
+        """Return list of master class events on this day."""
+        return [
+            event
+            for event in self.events
+            if event.is_master_class
+            and (not children_only or event.is_children_activity)
+        ]
+
     def get_events_for_location(self, location: str, children_only: bool = False) -> List[Event]:
         """Return list of events scheduled at the specified location on this day."""
         target_loc = location.strip().lower()

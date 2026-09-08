@@ -12,6 +12,7 @@ from bot.content import (
     BTN_CHILDREN_ACTIVITY,
     BTN_HELP,
     BTN_MAP,
+    BTN_MASTER_CLASSES,
     BTN_PARTICIPANTS,
     BTN_RECOMMENDATIONS,
     BTN_SHOW_PARTICIPANTS,
@@ -22,6 +23,7 @@ from bot.content import (
     CB_CHILDREN_ACTIVITY,
     CB_HELP,
     CB_MAP,
+    CB_MASTER_CLASSES,
     CB_PARTICIPANTS,
     CB_RECOMMENDATIONS,
     CB_STANDS,
@@ -36,9 +38,9 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
     """Returns the persistent main menu reply keyboard."""
     keyboard = [
         [KeyboardButton(BTN_MAP), KeyboardButton(BTN_TIMETABLE)],
-        [KeyboardButton(BTN_CHILDREN_ACTIVITY), KeyboardButton(BTN_RECOMMENDATIONS)],
-        [KeyboardButton(BTN_PARTICIPANTS), KeyboardButton(BTN_WISHLIST)],
-        [KeyboardButton(BTN_HELP)],
+        [KeyboardButton(BTN_CHILDREN_ACTIVITY), KeyboardButton(BTN_MASTER_CLASSES)],
+        [KeyboardButton(BTN_RECOMMENDATIONS), KeyboardButton(BTN_PARTICIPANTS)],
+        [KeyboardButton(BTN_WISHLIST), KeyboardButton(BTN_HELP)],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -52,13 +54,14 @@ def get_main_inline_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(BTN_CHILDREN_ACTIVITY, callback_data=BUTTON_CALLBACK_MAP[BTN_CHILDREN_ACTIVITY]),
+            InlineKeyboardButton(BTN_MASTER_CLASSES, callback_data=BUTTON_CALLBACK_MAP[BTN_MASTER_CLASSES]),
+        ],
+        [
             InlineKeyboardButton(BTN_RECOMMENDATIONS, callback_data=BUTTON_CALLBACK_MAP[BTN_RECOMMENDATIONS]),
-        ],
-        [
             InlineKeyboardButton(BTN_PARTICIPANTS, callback_data=BUTTON_CALLBACK_MAP[BTN_PARTICIPANTS]),
-            InlineKeyboardButton(BTN_WISHLIST, callback_data=BUTTON_CALLBACK_MAP[BTN_WISHLIST]),
         ],
         [
+            InlineKeyboardButton(BTN_WISHLIST, callback_data=BUTTON_CALLBACK_MAP[BTN_WISHLIST]),
             InlineKeyboardButton(BTN_HELP, callback_data=BUTTON_CALLBACK_MAP[BTN_HELP]),
         ],
     ]

@@ -4,6 +4,7 @@ from bot.sections.base import BaseSection
 from bot.sections.children_activity import ChildrenActivity, ChildrenActivitySection
 from bot.sections.help import Help, HelpSection
 from bot.sections.map import Map, MapSection
+from bot.sections.master_classes import MasterClasses, MasterClassesSection
 from bot.sections.participants import Participants, ParticipantsSection
 from bot.sections.recommendations import Recommendations, RecommendationsSection
 from bot.sections.registry import SectionRegistry, default_registry
@@ -23,6 +24,8 @@ __all__ = [
     "TimetableSection",
     "ChildrenActivity",
     "ChildrenActivitySection",
+    "MasterClasses",
+    "MasterClassesSection",
     "Recommendations",
     "RecommendationsSection",
     "Participants",

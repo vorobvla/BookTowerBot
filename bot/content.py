@@ -38,6 +38,7 @@ START_MESSAGE = (
     "• 🏢 /map — Карта площадки и информация о стендах\n"
     "• 📅 /timetables — Расписание мероприятий\n"
     "• 🎈 /children — Детская программа мероприятий\n"
+    "• 🎨 /masterclasses — Мастер-классы\n"
     "• 📚 /recommendations — Рекомендации книг\n"
     "• 👥 /participants — Список участников и номера их стендов\n"
     "• 📝 /wishlist — Вишлист, куда вы можете добавить желаемые книги\n"
@@ -52,6 +53,7 @@ HELP_MESSAGE = (
     "• `/map` — Показать карту площадки и схему павильонов\n"
     "• `/timetables` — Расписание событий и мероприятий\n"
     "• `/children` — Детская программа мероприятий\n"
+    "• `/masterclasses` или `/mc` — Мастер-классы\n"
     "• `/recommendations` или `/recs` — Подборка рекомендаций\n"
     "• `/participants` — Список участников и расположение их стендов\n"
     "• `/wishlist` — Вишлист (добавить книгу, посмотреть список)\n"
@@ -77,6 +79,27 @@ TIMETABLE_MESSAGE = (
 CHILDREN_ACTIVITY_MESSAGE = (
     "🎈 *Детская программа*\n\n"
     "Пожалуйста, выберите интересующую вас дату:"
+)
+
+MASTER_CLASSES_MESSAGE = (
+    "🎨 *Мастер-классы*\n\n"
+    "Пожалуйста, выберите мастер-класс, чтобы узнать подробную информацию, "
+    "или нажмите *«🎈 Для детей»* для просмотра детской программы:"
+)
+
+MASTER_CLASSES_CHILDREN_MESSAGE = (
+    "🎈 *Мастер-классы для детей*\n\n"
+    "Пожалуйста, выберите мастер-класс, чтобы узнать подробную информацию:"
+)
+
+MASTER_CLASSES_EMPTY_MESSAGE = (
+    "🎨 *Мастер-классы*\n\n"
+    "В расписании пока нет запланированных мастер-классов."
+)
+
+MASTER_CLASSES_CHILDREN_EMPTY_MESSAGE = (
+    "🎈 *Мастер-классы для детей*\n\n"
+    "В расписании пока нет запланированных детских мастер-классов."
 )
 
 RECOMMENDATIONS_MESSAGE = (
@@ -153,6 +176,10 @@ UNKNOWN_COMMAND_MESSAGE = (
 BTN_MAP = "🏢 План ярмарки"
 BTN_TIMETABLE = "📅 Расписание"
 BTN_CHILDREN_ACTIVITY = "🎈 Детская программа"
+BTN_MASTER_CLASSES = "🎨 Мастер-классы"
+BTN_MC_FOR_CHILDREN = "🎈 Для детей"
+BTN_MC_ALL = "👥 Все мастер-классы"
+BTN_BACK_TO_MC = "« Назад к мастер-классам"
 BTN_RECOMMENDATIONS = "📚 Рекомендации"
 BTN_PARTICIPANTS = "👥 Участники"
 BTN_WISHLIST = "📝 Вишлист"
@@ -174,6 +201,10 @@ BTN_HELP = "ℹ️ Помощь"
 CB_MAP = "action_map"
 CB_TIMETABLE = "action_timetable"
 CB_CHILDREN_ACTIVITY = "section_children_activity"
+CB_MASTER_CLASSES = "action_master_classes"
+CB_MC_FILTER_CHILDREN = "mc_filter:children"
+CB_MC_FILTER_ALL = "mc_filter:all"
+CB_MC_ITEM_PREFIX = "mc_item:"
 CB_RECOMMENDATIONS = "action_recommendations"
 CB_PARTICIPANTS = "action_participants"
 CB_WISHLIST = "action_wishlist"
@@ -194,6 +225,23 @@ BUTTON_CALLBACK_MAP = {
     BTN_MAP: CB_MAP,
     BTN_TIMETABLE: CB_TIMETABLE,
     BTN_CHILDREN_ACTIVITY: CB_CHILDREN_ACTIVITY,
+    BTN_MASTER_CLASSES: CB_MASTER_CLASSES,
+    "Мастер-классы": CB_MASTER_CLASSES,
+    "Мастер классы": CB_MASTER_CLASSES,
+    "Мастер-класс": CB_MASTER_CLASSES,
+    "Мастер класс": CB_MASTER_CLASSES,
+    "masterclasses": CB_MASTER_CLASSES,
+    "masterclass": CB_MASTER_CLASSES,
+    "Masterclasses": CB_MASTER_CLASSES,
+    "Master classes": CB_MASTER_CLASSES,
+    "Master class": CB_MASTER_CLASSES,
+    BTN_MC_FOR_CHILDREN: CB_MC_FILTER_CHILDREN,
+    "Для детей": CB_MC_FILTER_CHILDREN,
+    "для детей": CB_MC_FILTER_CHILDREN,
+    BTN_MC_ALL: CB_MC_FILTER_ALL,
+    "Все мастер-классы": CB_MC_FILTER_ALL,
+    "все мастер-классы": CB_MC_FILTER_ALL,
+    BTN_BACK_TO_MC: CB_MC_FILTER_ALL,
     BTN_RECOMMENDATIONS: CB_RECOMMENDATIONS,
     BTN_PARTICIPANTS: CB_PARTICIPANTS,
     BTN_WISHLIST: CB_WISHLIST,

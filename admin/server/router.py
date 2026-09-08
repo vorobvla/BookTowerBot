@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 from urllib.parse import quote, urlparse
 
 from admin.auth.authenticator import AdminAuthenticator
@@ -178,6 +178,8 @@ class AdminRouter:
                     return self._handle_post_day_event_delete(request, date_key)
                 if action in ("toggle_children", "toggle_children_activity") and request.method == "POST":
                     return self._handle_post_day_event_toggle_children(request, date_key)
+                if action in ("toggle_master_class", "toggle_masterclass") and request.method == "POST":
+                    return self._handle_post_day_event_toggle_master_class(request, date_key)
 
         # JSON API Routes
         if path.startswith("/api/"):
@@ -462,10 +464,12 @@ class AdminRouter:
 
     def _handle_get_timetables_list(self, request: AdminRequest) -> AdminResponse:
         dates = self.timetable_service.list_days()
+        master_classes = self.timetable_service.get_all_master_classes()
         error = request.query_params.get("error")
         message = request.query_params.get("msg")
         html = AdminTemplateRenderer.render_timetables_list(
             dates,
+            master_classes=master_classes,
             error=error,
             message=message,
             has_unsaved_changes=self.has_unsaved_changes(),
@@ -528,6 +532,8 @@ class AdminRouter:
         description = request.form_data.get("description", "")
         raw_children = request.form_data.get("is_children_activity", "0")
         is_children_activity = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
+        raw_master = request.form_data.get("is_master_class", "0")
+        is_master_class = str(raw_master).strip().lower() in ("1", "true", "yes", "on")
 
         try:
             self.timetable_service.add_event(
@@ -539,6 +545,7 @@ class AdminRouter:
                 participants=participants,
                 organizer=organizer,
                 is_children_activity=is_children_activity,
+                is_master_class=is_master_class,
             )
             return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote(f"Мероприятие «{title}» добавлено"))
         except Exception as e:
@@ -567,6 +574,8 @@ class AdminRouter:
         description = request.form_data.get("description", "")
         raw_children = request.form_data.get("is_children_activity", "0")
         is_children_activity = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
+        raw_master = request.form_data.get("is_master_class", "0")
+        is_master_class = str(raw_master).strip().lower() in ("1", "true", "yes", "on")
 
         try:
             event_index = int(index_str)
@@ -580,6 +589,7 @@ class AdminRouter:
                 participants=participants,
                 organizer=organizer,
                 is_children_activity=is_children_activity,
+                is_master_class=is_master_class,
             )
             return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote("Мероприятие обновлено"))
         except Exception as e:
@@ -587,15 +597,19 @@ class AdminRouter:
 
     def _handle_post_day_event_delete(self, request: AdminRequest, date_key: str) -> AdminResponse:
         index_str = request.form_data.get("event_index", "0")
+        return_to = request.form_data.get("return_to", f"/timetables/{date_key}")
         try:
             event_index = int(index_str)
             self.timetable_service.delete_event(date_key, event_index)
-            return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote("Мероприятие удалено"))
+            sep = "&" if "?" in return_to else "?"
+            return AdminResponse.redirect(f"{return_to}{sep}msg=" + quote("Мероприятие удалено"))
         except Exception as e:
-            return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
+            sep = "&" if "?" in return_to else "?"
+            return AdminResponse.redirect(f"{return_to}{sep}error=" + quote(str(e)))
 
     def _handle_post_day_event_toggle_children(self, request: AdminRequest, date_key: str) -> AdminResponse:
         index_str = request.form_data.get("event_index", "0")
+        return_to = request.form_data.get("return_to", f"/timetables/{date_key}")
         try:
             event_index = int(index_str)
             raw_children = request.form_data.get("is_children_activity")
@@ -604,9 +618,26 @@ class AdminRouter:
                 self.timetable_service.set_event_children_activity(date_key, event_index, is_children)
             else:
                 self.timetable_service.toggle_event_children_activity(date_key, event_index)
-            return AdminResponse.redirect(f"/timetables/{date_key}")
+            return AdminResponse.redirect(return_to)
         except Exception as e:
-            return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
+            sep = "&" if "?" in return_to else "?"
+            return AdminResponse.redirect(f"{return_to}{sep}error=" + quote(str(e)))
+
+    def _handle_post_day_event_toggle_master_class(self, request: AdminRequest, date_key: str) -> AdminResponse:
+        index_str = request.form_data.get("event_index", "0")
+        return_to = request.form_data.get("return_to", f"/timetables/{date_key}")
+        try:
+            event_index = int(index_str)
+            raw_master = request.form_data.get("is_master_class")
+            if raw_master is not None:
+                is_master = str(raw_master).strip().lower() in ("1", "true", "yes", "on")
+                self.timetable_service.set_event_master_class(date_key, event_index, is_master)
+            else:
+                self.timetable_service.toggle_event_master_class(date_key, event_index)
+            return AdminResponse.redirect(return_to)
+        except Exception as e:
+            sep = "&" if "?" in return_to else "?"
+            return AdminResponse.redirect(f"{return_to}{sep}error=" + quote(str(e)))
 
     # --- Locations Web Handlers ---
 
@@ -837,6 +868,7 @@ class AdminRouter:
                     participants=payload.get("participants", []),
                     organizer=payload.get("organizer", ""),
                     is_children_activity=payload.get("is_children_activity", False),
+                    is_master_class=payload.get("is_master_class", payload.get("is_masterclass", False)),
                 )
                 return AdminResponse.json({"status": "ok"}, status_code=201)
 
@@ -1067,6 +1099,7 @@ class AdminRouter:
                         organizer = str(ev.get("organizer", "") or "").strip()
                         desc = str(ev.get("description", "") or "").strip()
                         is_children = bool(ev.get("is_children_activity", False))
+                        is_master = bool(ev.get("is_master_class", ev.get("is_masterclass", False)))
 
                         parts_raw = ev.get("participants") or []
                         if isinstance(parts_raw, str):
@@ -1084,6 +1117,7 @@ class AdminRouter:
                             "participants": participants,
                             "organizer": organizer,
                             "is_children_activity": is_children,
+                            "is_master_class": is_master,
                         })
                         count += 1
 

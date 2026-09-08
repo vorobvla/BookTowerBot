@@ -204,11 +204,12 @@ class AdminTemplateRenderer:
     def render_timetables_list(
         cls,
         dates: List[str],
+        master_classes: Optional[List[Dict[str, Any]]] = None,
         error: Optional[str] = None,
         message: Optional[str] = None,
         has_unsaved_changes: bool = False,
     ) -> str:
-        """Render list of timetable dates."""
+        """Render list of timetable dates and master-classes panel."""
         alert_tpl = cls.load_template("alert.html")
         alerts = []
         if error:
@@ -240,10 +241,55 @@ class AdminTemplateRenderer:
 
         date_rows_content = "".join(rows) if rows else empty_row_tpl
 
+        mc_rows = []
+        if master_classes:
+            mc_row_tpl = cls.load_template("timetables_master_class_row.html")
+            for item in master_classes:
+                date_key = str(item.get("date_key", "")).strip()
+                display_date = date_key
+                if len(date_key) == 8 and date_key.isdigit():
+                    display_date = f"{date_key[:2]}.{date_key[2:4]}.{date_key[4:]}"
+
+                participants_raw = item.get("participants", [])
+                if isinstance(participants_raw, list):
+                    participants_str = ", ".join(participants_raw) if participants_raw else ""
+                else:
+                    participants_str = str(participants_raw) if participants_raw else ""
+                display_participants = participants_str if participants_str else "—"
+                display_organizer = item.get("organizer", "") or "—"
+                display_description = item.get("description", "") or "—"
+
+                is_children = bool(item.get("is_children_activity", False))
+                checked_attr = "checked" if is_children else ""
+
+                is_master = bool(item.get("is_master_class", False))
+                master_checked_attr = "checked" if is_master else ""
+
+                row_html = (
+                    mc_row_tpl.replace("{{ date_key }}", html.escape(date_key))
+                    .replace("{{ display_date }}", html.escape(display_date))
+                    .replace("{{ event_index }}", str(item.get("event_index", 0)))
+                    .replace("{{ time }}", html.escape(str(item.get("time", ""))))
+                    .replace("{{ title }}", html.escape(str(item.get("title", ""))))
+                    .replace("{{ location }}", html.escape(str(item.get("location", ""))))
+                    .replace("{{ organizer }}", html.escape(str(display_organizer)))
+                    .replace("{{ participants }}", html.escape(str(display_participants)))
+                    .replace("{{ description }}", html.escape(str(display_description)))
+                    .replace("{{ checked_attr }}", checked_attr)
+                    .replace("{{ master_checked_attr }}", master_checked_attr)
+                )
+                mc_rows.append(row_html)
+
+        empty_mc_tpl = cls.load_template("timetables_empty_master_classes_row.html")
+        master_class_rows_content = "".join(mc_rows) if mc_rows else empty_mc_tpl
+        master_classes_count = str(len(mc_rows))
+
         timetables_tpl = cls.load_template("timetables_list.html")
         content = (
             timetables_tpl.replace("{{ alerts_html }}", alerts_html)
             .replace("{{ date_rows }}", date_rows_content)
+            .replace("{{ master_class_rows }}", master_class_rows_content)
+            .replace("{{ master_classes_count }}", master_classes_count)
         )
 
         return cls._render_layout(
@@ -251,6 +297,7 @@ class AdminTemplateRenderer:
             content=content,
             active_tab="timetables",
             has_unsaved_changes=has_unsaved_changes,
+            return_to_path="/timetables",
         )
 
     @classmethod
@@ -369,6 +416,9 @@ class AdminTemplateRenderer:
             checked_attr = "checked" if event.is_children_activity else ""
             is_children_num = "1" if event.is_children_activity else "0"
 
+            master_checked_attr = "checked" if getattr(event, "is_master_class", False) else ""
+            is_master_class_num = "1" if getattr(event, "is_master_class", False) else "0"
+
             row_html = (
                 event_row_tpl.replace("{{ time }}", html.escape(event.time))
                 .replace("{{ title }}", html.escape(event.title))
@@ -380,6 +430,8 @@ class AdminTemplateRenderer:
                 .replace("{{ event_index }}", str(idx))
                 .replace("{{ checked_attr }}", checked_attr)
                 .replace("{{ is_children_activity_num }}", is_children_num)
+                .replace("{{ master_checked_attr }}", master_checked_attr)
+                .replace("{{ is_master_class_num }}", is_master_class_num)
                 .replace("{{ title_attr }}", html.escape(event.title, quote=True))
                 .replace("{{ location_attr }}", html.escape(event.location, quote=True))
                 .replace("{{ organizer_attr }}", html.escape(event.organizer or "", quote=True))
@@ -392,8 +444,8 @@ class AdminTemplateRenderer:
             else:
                 general_event_rows.append(row_html)
 
-        empty_general = '<tr><td colspan="8" style="text-align:center; color:#94a3b8;">Нет запланированных событий основной программы</td></tr>'
-        empty_children = '<tr><td colspan="8" style="text-align:center; color:#94a3b8;">Нет запланированных событий детской программы</td></tr>'
+        empty_general = '<tr><td colspan="9" style="text-align:center; color:#94a3b8;">Нет запланированных событий основной программы</td></tr>'
+        empty_children = '<tr><td colspan="9" style="text-align:center; color:#94a3b8;">Нет запланированных событий детской программы</td></tr>'
 
         event_rows_content = "".join(all_event_rows) if all_event_rows else empty_events_tpl
         general_rows_content = "".join(general_event_rows) if general_event_rows else empty_general

@@ -15,6 +15,7 @@ class Event:
     organizer: str = ""
     location: str = ""
     is_children_activity: bool = False
+    is_master_class: bool = False
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Event":
@@ -30,6 +31,12 @@ class Event:
         else:
             is_children_activity = bool(raw_children)
 
+        raw_master = data.get("is_master_class") if "is_master_class" in data else data.get("is_masterclass", False)
+        if isinstance(raw_master, str):
+            is_master_class = raw_master.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            is_master_class = bool(raw_master)
+
         return cls(
             time=str(data.get("time", "")).strip(),
             title=str(data.get("title", "")).strip(),
@@ -38,6 +45,7 @@ class Event:
             organizer=str(organizer).strip(),
             location=str(data.get("location", "")).strip(),
             is_children_activity=is_children_activity,
+            is_master_class=is_master_class,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -50,6 +58,7 @@ class Event:
             "organizer": self.organizer,
             "location": self.location,
             "is_children_activity": self.is_children_activity,
+            "is_master_class": self.is_master_class,
         }
 
     def format_markdown(self) -> str:

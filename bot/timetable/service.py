@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from bot.content import TIMETABLES_PATH
 from bot.timetable.day import DayTimetable
@@ -97,4 +97,45 @@ class TimetableService:
             if i < len(events) - 1:
                 lines.append("\n" + "─" * 22 + "\n")
 
+        return "\n".join(lines)
+
+    def get_master_classes(self, children_only: bool = False) -> List[Tuple[str, int, Event]]:
+        """Return list of tuples (date_str, event_index, event) for all master-class events, sorted chronologically."""
+        dates = self.get_available_dates()
+        master_classes: List[Tuple[str, int, Event]] = []
+        for date_str in dates:
+            day = self.get_day(date_str)
+            if not day:
+                continue
+            for idx, event in enumerate(day.events):
+                if event.is_master_class:
+                    if not children_only or event.is_children_activity:
+                        master_classes.append((date_str, idx, event))
+        return master_classes
+
+    def get_master_class(self, date_str: str, event_index: int) -> Optional[Event]:
+        """Return master class event by date string and index."""
+        day = self.get_day(date_str)
+        if day and 0 <= event_index < len(day.events):
+            return day.events[event_index]
+        return None
+
+    def format_master_class_details(self, date_str: str, event: Event) -> str:
+        """Format detailed information for a single master-class event as Markdown."""
+        date_label = self.format_date_label(date_str)
+        lines = [
+            f"🎨 *Мастер-класс: {event.title}*\n",
+            f"📅 *Дата:* {date_label}",
+            f"⌚ *Время:* {event.time}",
+        ]
+        if event.location:
+            lines.append(f"📍 *Площадка:* {event.location}")
+        if event.is_children_activity:
+            lines.append("🎈 *Программа:* Детская программа")
+        if event.participants:
+            lines.append(f"👥 *Ведущие / Участники:* {', '.join(event.participants)}")
+        if event.organizer:
+            lines.append(f"📖 *Организатор:* {event.organizer}")
+        if event.description:
+            lines.append(f"\n📝 *Описание:*\n{event.description}")
         return "\n".join(lines)

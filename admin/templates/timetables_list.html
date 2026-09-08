@@ -37,6 +37,34 @@
     </table>
 </div>
 
+<div class="card" style="margin-top: 1.5rem; border-color: #c7d2fe;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin: 0; display: flex; align-items: center; gap: 8px; color: #3730a3;">
+            <span>🎨 Все мастер-классы</span>
+            <span style="background: #e0e7ff; color: #4338ca; font-size: 0.8rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">{{ master_classes_count }}</span>
+        </h3>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Время</th>
+                <th>Название</th>
+                <th>Локация</th>
+                <th>Организатор</th>
+                <th>Участники</th>
+                <th>Описание</th>
+                <th style="text-align: center;">Детская программа</th>
+                <th style="text-align: center;">Мастер-класс</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ master_class_rows }}
+        </tbody>
+    </table>
+</div>
+
 <script>
 function validateDateForm(form) {
     var dateInput = form.querySelector('input[name="date"]');

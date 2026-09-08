@@ -29,6 +29,7 @@ from bot.sections import (
     ChildrenActivity,
     Help,
     Map,
+    MasterClasses,
     Participants,
     Recommendations,
     Start,
@@ -56,6 +57,7 @@ help_section = Help()
 map_section = Map()
 timetable_section = Timetable()
 children_activity_section = ChildrenActivity()
+master_classes_section = MasterClasses()
 recommendations_section = Recommendations()
 participants_section = Participants()
 wishlist_section = Wishlist()
@@ -84,6 +86,11 @@ async def timetable_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def children_activity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /children and /children_activity commands."""
     await children_activity_section.handle(update, context)
+
+
+async def master_classes_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /masterclasses, /masterclass, and /mc commands."""
+    await master_classes_section.handle(update, context)
 
 
 async def recommendations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

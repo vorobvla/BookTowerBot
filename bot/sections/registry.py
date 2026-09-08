@@ -6,6 +6,7 @@ from bot.sections.base import BaseSection
 from bot.sections.children_activity import ChildrenActivity
 from bot.sections.help import Help
 from bot.sections.map import Map
+from bot.sections.master_classes import MasterClasses
 from bot.sections.participants import Participants
 from bot.sections.recommendations import Recommendations
 from bot.sections.start import Start
@@ -23,6 +24,7 @@ class SectionRegistry:
             Map(),
             Timetable(),
             ChildrenActivity(),
+            MasterClasses(),
             Recommendations(),
             Participants(),
             Wishlist(),
