@@ -13,6 +13,7 @@ from telegram.ext import ContextTypes
 
 from bot.analytics.anonymizer import anonymize_user_id
 from bot.analytics.service import default_analytics_service
+from bot.broadcast.registry import default_chat_registry
 from bot.content import (
     BTN_SHOW_STANDS,
     BTN_SHOW_STANDS_INFO,
@@ -103,6 +104,12 @@ def _get_anonymized_user_id(update: Update) -> str:
         else (update.effective_chat.id if update.effective_chat else 0)
     )
     return anonymize_user_id(telegram_id)
+
+
+def _register_chat(update: Update) -> None:
+    """Register active chat ID in RAM broadcast registry."""
+    if update and update.effective_chat and update.effective_chat.id:
+        default_chat_registry.register(update.effective_chat.id)
 
 
 def _resolve_callback_button_label(query) -> str:
@@ -255,6 +262,7 @@ def _resolve_callback_button_label(query) -> str:
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start command."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_chat_interaction(uid)
     default_analytics_service.record_command(uid, "/start")
@@ -263,6 +271,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /help command."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_command(uid, "/help")
     await help_section.handle(update, context)
@@ -270,6 +279,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def map_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /map command."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_command(uid, "/map")
     await map_section.handle(update, context)
@@ -277,6 +287,7 @@ async def map_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 async def timetable_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /timetables command."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_command(uid, "/timetables")
     await timetable_section.handle(update, context)
@@ -284,6 +295,7 @@ async def timetable_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def children_activity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /children and /children_activity commands."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_command(uid, "/children")
     await children_activity_section.handle(update, context)
@@ -291,6 +303,7 @@ async def children_activity_handler(update: Update, context: ContextTypes.DEFAUL
 
 async def master_classes_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /masterclasses, /masterclass, and /mc commands."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_command(uid, "/masterclasses")
     await master_classes_section.handle(update, context)
@@ -298,6 +311,7 @@ async def master_classes_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 async def recommendations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /recommendations and /recs commands."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     default_analytics_service.record_command(uid, "/recommendations")
     await recommendations_section.handle(update, context)
@@ -305,6 +319,7 @@ async def recommendations_handler(update: Update, context: ContextTypes.DEFAULT_
 
 async def participants_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /participants, /stands, and /vendors commands."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     msg_text = update.effective_message.text.strip().lower() if update.effective_message and update.effective_message.text else ""
     if "stand" in msg_text or "стенд" in msg_text:
@@ -316,6 +331,7 @@ async def participants_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def wishlist_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /wishlist, /getlist, and /addbook commands."""
+    _register_chat(update)
     uid = _get_anonymized_user_id(update)
     raw_cmd = "/wishlist"
     if update.effective_message and update.effective_message.text and update.effective_message.text.startswith("/"):
@@ -326,6 +342,7 @@ async def wishlist_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle inline button callback queries."""
+    _register_chat(update)
     query = update.callback_query
     if not query:
         return
@@ -354,6 +371,7 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
 
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle text messages matching reply keyboard buttons or custom input."""
+    _register_chat(update)
     if not update.effective_message or not update.effective_message.text:
         return
 
@@ -546,7 +564,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=get_wishlist_books_inline_keyboard(books, action="edit"),
             )
         return
-    elif text in ["Remove", "remove", "🗑 Удалить", "Удалить", "Delete", "delete", "Remove Book"]:
+    elif text in ["Remove", "remove", "➖ Удалить", "Удалить", "Delete", "delete", "Remove Book"]:
         default_analytics_service.record_command(user_id, "Удалить")
         books = wishlist_section.service.get_wishlist(user_id)
         if not books:
@@ -593,6 +611,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def photo_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle photo messages, e.g. barcode scanning for wishlist."""
+    _register_chat(update)
     if not update.effective_message or not update.effective_message.photo:
         return
 

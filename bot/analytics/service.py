@@ -118,7 +118,7 @@ class AnalyticsService:
 
     BASIC_TEXT_COMMAND_SPECS = [
         {"command": "/start", "description": "Запуск / Главное меню", "aliases": ["/start", "start"]},
-        {"command": "/help", "description": "Справка и навигация", "aliases": ["/help", "help"]},
+        {"command": "/help", "description": "Помощь", "aliases": ["/help", "help"]},
         {"command": "/map", "description": "План площадки", "aliases": ["/map", "map"]},
         {"command": "/timetables", "description": "Расписание мероприятий", "aliases": ["/timetables", "/timetable", "/schedule", "timetables", "timetable"]},
         {"command": "/children", "description": "Детская программа", "aliases": ["/children", "/children_activity", "/kids", "children"]},

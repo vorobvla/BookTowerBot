@@ -7,6 +7,7 @@ from admin.auth.session_manager import AdminSessionManager
 from admin.config import AdminConfig
 from admin.server.router import AdminRouter
 from admin.server.server import AdminServer
+from admin.services.broadcast_service import AdminBroadcastService
 from admin.services.data_service import AdminDataTransferService
 from admin.services.map_service import AdminMapService
 from admin.services.participants_service import AdminParticipantsService
@@ -26,6 +27,11 @@ class AdminApp:
         self.map_service = AdminMapService(self.config.map_dir)
         self.participants_service = AdminParticipantsService(self.config.participants_path)
         self.data_service = AdminDataTransferService(self.config.assets_path)
+        self.broadcast_service = AdminBroadcastService(
+            api_url=self.config.bot_internal_api_url,
+            host=self.config.bot_internal_host,
+            port=self.config.bot_internal_port,
+        )
 
         self.router = AdminRouter(
             config=self.config,
@@ -36,6 +42,7 @@ class AdminApp:
             map_service=self.map_service,
             participants_service=self.participants_service,
             data_service=self.data_service,
+            broadcast_service=self.broadcast_service,
         )
 
         self.server = AdminServer(router=self.router, config=self.config)

@@ -37,6 +37,7 @@ class AdminTemplateRenderer:
         recs_active = "active" if active_tab == "recs" else ""
         map_active = "active" if active_tab == "map" else ""
         participants_active = "active" if active_tab == "participants" else ""
+        broadcast_active = "active" if active_tab == "broadcast" else ""
         analytics_active = "active" if active_tab == "analytics" else ""
         data_active = "active" if active_tab == "data" else ""
 
@@ -47,6 +48,8 @@ class AdminTemplateRenderer:
                 return_to_path = "/recs"
             elif active_tab == "participants":
                 return_to_path = "/participants"
+            elif active_tab == "broadcast":
+                return_to_path = "/broadcast"
             elif active_tab == "locations":
                 return_to_path = "/locations"
             elif active_tab == "analytics":
@@ -88,6 +91,7 @@ class AdminTemplateRenderer:
             .replace("{{ recs_active }}", recs_active)
             .replace("{{ map_active }}", map_active)
             .replace("{{ participants_active }}", participants_active)
+            .replace("{{ broadcast_active }}", broadcast_active)
             .replace("{{ analytics_active }}", analytics_active)
             .replace("{{ data_active }}", data_active)
             .replace("{{ return_to_path }}", html.escape(return_to_path))
@@ -810,4 +814,73 @@ class AdminTemplateRenderer:
             active_tab="analytics",
             has_unsaved_changes=has_unsaved_changes,
             return_to_path="/analytics",
+        )
+
+    @classmethod
+    def render_broadcast(
+        cls,
+        chat_count: int,
+        commands: List[Dict[str, str]],
+        is_bot_online: bool = True,
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        has_unsaved_changes: bool = False,
+    ) -> str:
+        """Render broadcast management page with composer and confirmation modal."""
+        template = cls.load_template("broadcast.html")
+        alerts = []
+        alert_tpl = cls.load_template("alert.html")
+        if error:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-error")
+                .replace("{{ message }}", html.escape(error))
+            )
+        if message:
+            alerts.append(
+                alert_tpl.replace("{{ alert_type }}", "alert-success")
+                .replace("{{ message }}", html.escape(message))
+            )
+        alerts_html = "".join(alerts)
+
+        if not is_bot_online:
+            status_bg_color = "#fee2e2"
+            status_text_color = "#991b1b"
+            status_icon = "🔴"
+            status_label = "(Бот офлайн / недоступен)"
+        elif chat_count > 0:
+            status_bg_color = "#dcfce7"
+            status_text_color = "#15803d"
+            status_icon = "🟢"
+            status_label = "(Бот онлайн, готов к отправке)"
+        else:
+            status_bg_color = "#fef9c3"
+            status_text_color = "#a16207"
+            status_icon = "🟡"
+            status_label = "(Бот онлайн, 0 активных чатов)"
+
+        cmd_opts = []
+        for cmd in commands:
+            cmd_name = html.escape(cmd.get("command", ""))
+            cmd_title = html.escape(cmd.get("title", cmd_name))
+            cmd_desc = html.escape(cmd.get("description", ""))
+            label = f"{cmd_title} — {cmd_desc}" if cmd_desc else cmd_title
+            cmd_opts.append(f'<option value="{cmd_name}">{label}</option>')
+        command_options_html = "\n".join(cmd_opts)
+
+        content = (
+            template.replace("{{ alert }}", alerts_html)
+            .replace("{{ chat_count }}", str(chat_count))
+            .replace("{{ status_bg_color }}", status_bg_color)
+            .replace("{{ status_text_color }}", status_text_color)
+            .replace("{{ status_icon }}", status_icon)
+            .replace("{{ status_label }}", status_label)
+            .replace("{{ command_options }}", command_options_html)
+        )
+
+        return cls._render_layout(
+            title="Рассылка",
+            content=content,
+            active_tab="broadcast",
+            has_unsaved_changes=has_unsaved_changes,
+            return_to_path="/broadcast",
         )

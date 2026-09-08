@@ -1,0 +1,214 @@
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #1e293b;">📢 Рассылка пользователям</h2>
+        <p style="margin: 0.25rem 0 0 0; color: var(--text-muted); font-size: 0.9rem;">
+            Отправка мгновенных анонсов и запуск команд бота для всех активных пользователей в оперативной памяти.
+        </p>
+    </div>
+</div>
+
+{{ alert }}
+
+<!-- Live Bot Status & Metrics Card -->
+<div class="card" style="margin-bottom: 1.5rem; background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 46px; height: 46px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; background: {{ status_bg_color }};">
+                {{ status_icon }}
+            </div>
+            <div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Активных чатов</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: #1e293b;">
+                    <span id="activeChatsCount">{{ chat_count }}</span>
+                    <span style="font-size: 0.85rem; font-weight: normal; color: {{ status_text_color }}; margin-left: 8px;">
+                        {{ status_label }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="window.location.reload()" style="display: flex; align-items: center; gap: 6px;">
+                <span>🔄</span>
+                <span>Обновить статус</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Broadcast Composer Form -->
+<div class="card" style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+    <h3 style="margin-top: 0; margin-bottom: 1.25rem; font-size: 1.15rem; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+        <span>✍️</span>
+        <span>Составить рассылку</span>
+    </h3>
+
+    <form id="broadcastMainForm" method="POST" action="/broadcast/send">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="broadcastText" style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; color: #1e293b;">
+                Текст сообщения:
+            </label>
+            <textarea
+                id="broadcastText"
+                name="text"
+                rows="6"
+                class="form-control"
+                placeholder="Введите текст объявления..."
+                style="resize: vertical; font-family: inherit; font-size: 0.95rem; line-height: 1.5;"
+            ></textarea>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; display: flex; gap: 1.5rem;">
+                <span>Поддерживается разметка: <code>*жирный*</code>, <code>_курсив_</code>, <code>[ссылка](url)</code>, <code>`код`</code></span>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label for="broadcastCommand" style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; color: #1e293b;">
+                Прикрепить выполнение команды бота (опционально):
+            </label>
+            <select
+                id="broadcastCommand"
+                name="command"
+                class="form-control"
+                style="font-size: 0.95rem;"
+            >
+                <option value="">-- Без команды (отправить только текст сообщения) --</option>
+                {{ command_options }}
+            </select>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem;">
+                Выбранная команда будет выполнена для каждого получателя с отправкой интерактивных кнопок (или персонального вишлиста для «Вишлист пользователя»).
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1rem;">
+            <button
+                type="button"
+                id="openBroadcastModalBtn"
+                class="btn"
+                onclick="openBroadcastConfirmModal()"
+                style="background-color: var(--primary); color: #ffffff; font-weight: 600; padding: 0.65rem 1.4rem; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;"
+            >
+                <span>📢</span>
+                <span>Отправить рассылку...</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Safety Confirmation Modal Dialog -->
+<div id="broadcastConfirmModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 560px; margin: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); position: relative; border-radius: 10px; background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+            <h3 style="margin: 0; color: #b91c1c; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <span>⚠️</span>
+                <span>Подтверждение рассылки</span>
+            </h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeBroadcastConfirmModal()" style="font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.5rem;">✕</button>
+        </div>
+
+        <div style="margin-bottom: 1.25rem;">
+            <div style="padding: 0.75rem 1rem; background: #fef2f2; border: 1px solid #fee2e2; border-radius: 6px; color: #991b1b; font-size: 0.9rem; margin-bottom: 1rem;">
+                <strong>Внимание!</strong> Рассылка будет отправлена немедленно всем активным пользователям Telegram-бота. Это действие нельзя отменить.
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 1rem;">
+                <tr>
+                    <td style="padding: 6px 0; color: var(--text-muted); font-weight: 600; width: 140px;">Получатели:</td>
+                    <td style="padding: 6px 0; font-weight: 700; color: #1e293b;">
+                        <span id="modalRecipientsCount">{{ chat_count }}</span> пользователей ()
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; color: var(--text-muted); font-weight: 600;">Команда:</td>
+                    <td style="padding: 6px 0; font-weight: 600; color: #1e293b;" id="modalSelectedCommand">
+                        —
+                    </td>
+                </tr>
+            </table>
+
+            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem;">
+                Предпросмотр сообщения:
+            </div>
+            <div id="modalMessagePreview" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.9rem; max-height: 160px; overflow-y: auto; white-space: pre-wrap; color: #1e293b; font-family: monospace;">
+                (Текст сообщения не указан)
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 1rem;">
+            <button type="button" class="btn btn-secondary" onclick="closeBroadcastConfirmModal()" style="font-weight: 500;">
+                Отмена
+            </button>
+            <button type="button" class="btn btn-danger" id="confirmSendBroadcastBtn" onclick="confirmAndSubmitBroadcast()" style="background-color: var(--danger); font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>Подтвердить и отправить</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openBroadcastConfirmModal() {
+    var textInput = document.getElementById('broadcastText');
+    var cmdInput = document.getElementById('broadcastCommand');
+    var textVal = (textInput ? textInput.value : '').trim();
+    var cmdVal = (cmdInput ? cmdInput.value : '').trim();
+
+    if (!textVal && !cmdVal) {
+        alert('Пожалуйста, введите текст сообщения или выберите команду для рассылки.');
+        return;
+    }
+
+    var modal = document.getElementById('broadcastConfirmModal');
+    var previewEl = document.getElementById('modalMessagePreview');
+    var cmdPreviewEl = document.getElementById('modalSelectedCommand');
+
+    if (previewEl) {
+        previewEl.textContent = textVal || '(Текст сообщения не указан — будет выполнена только команда)';
+    }
+
+    if (cmdPreviewEl) {
+        if (cmdVal && cmdInput && cmdInput.selectedIndex >= 0) {
+            var optText = cmdInput.options[cmdInput.selectedIndex].text;
+            cmdPreviewEl.textContent = optText;
+        } else {
+            cmdPreviewEl.textContent = '— (Без команды, только текст)';
+        }
+    }
+
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeBroadcastConfirmModal() {
+    var modal = document.getElementById('broadcastConfirmModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function confirmAndSubmitBroadcast() {
+    var btn = document.getElementById('confirmSendBroadcastBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Отправка...';
+    }
+    var form = document.getElementById('broadcastMainForm');
+    if (form) {
+        form.submit();
+    }
+}
+
+// Close modal on Escape key or outside click
+window.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeBroadcastConfirmModal();
+    }
+});
+
+var modalBackdrop = document.getElementById('broadcastConfirmModal');
+if (modalBackdrop) {
+    modalBackdrop.addEventListener('click', function(e) {
+        if (e.target === modalBackdrop) {
+            closeBroadcastConfirmModal();
+        }
+    });
+}
+</script>

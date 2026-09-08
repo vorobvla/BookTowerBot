@@ -1,6 +1,8 @@
 """Telegram Bot application factory and setup."""
 
+import asyncio
 import logging
+from typing import Optional
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -10,6 +12,8 @@ from telegram.ext import (
     filters,
 )
 
+from bot.broadcast.server import BotInternalServer
+from bot.broadcast.service import BroadcastService
 from bot.handlers import (
     button_callback_handler,
     children_activity_handler,
@@ -51,13 +55,48 @@ def setup_handlers(app: Application) -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
 
-def build_application(token: str) -> Application:
-    """Build and configure the Telegram Bot Application."""
-    app = (
+def build_application(
+    token: str,
+    internal_host: str = "127.0.0.1",
+    internal_port: int = 8085,
+    enable_internal_server: bool = True,
+) -> Application:
+    """Build and configure the Telegram Bot Application with handlers and internal loopback server."""
+
+    async def _post_init(app: Application) -> None:
+        if enable_internal_server:
+            try:
+                loop = asyncio.get_running_loop()
+                broadcast_svc = BroadcastService(bot=app.bot)
+                server = BotInternalServer(
+                    broadcast_service=broadcast_svc,
+                    host=internal_host,
+                    port=internal_port,
+                    loop=loop,
+                )
+                server.start(background=True)
+                app.bot_data["internal_server"] = server
+                app.bot_data["broadcast_service"] = broadcast_svc
+            except Exception as e:
+                logger.error("Failed to start BotInternalServer: %s", e, exc_info=True)
+
+    async def _post_shutdown(app: Application) -> None:
+        server = app.bot_data.get("internal_server")
+        if server:
+            try:
+                server.stop()
+            except Exception as e:
+                logger.debug("Error shutting down internal server: %s", e)
+
+    builder = (
         ApplicationBuilder()
         .token(token)
         .concurrent_updates(True)
-        .build()
     )
+
+    if enable_internal_server:
+        builder = builder.post_init(_post_init).post_shutdown(_post_shutdown)
+
+    app = builder.build()
     setup_handlers(app)
     return app

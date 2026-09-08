@@ -13,12 +13,13 @@ from admin.config import AdminConfig
 from admin.llm.transfer_to_json import InputType, LLMJsonConverter
 from admin.server.request import AdminRequest
 from admin.server.response import AdminResponse
+from admin.services.analytics_service import AdminAnalyticsService
+from admin.services.broadcast_service import AdminBroadcastService
 from admin.services.data_service import AdminDataTransferService
 from admin.services.map_service import AdminMapService
 from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
-from admin.services.analytics_service import AdminAnalyticsService
 from admin.views.template_renderer import AdminTemplateRenderer
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class AdminRouter:
         participants_service: Optional[AdminParticipantsService] = None,
         data_service: Optional[AdminDataTransferService] = None,
         analytics_service: Optional[AdminAnalyticsService] = None,
+        broadcast_service: Optional[AdminBroadcastService] = None,
     ):
         self.config = config or AdminConfig.from_env()
         self.authenticator = authenticator or AdminAuthenticator(self.config)
@@ -50,6 +52,11 @@ class AdminRouter:
         self.analytics_service = analytics_service or AdminAnalyticsService(
             db_path=self.config.analytics_db_path,
             wishlist_db_path=self.config.wishlist_db_path,
+        )
+        self.broadcast_service = broadcast_service or AdminBroadcastService(
+            api_url=self.config.bot_internal_api_url,
+            host=self.config.bot_internal_host,
+            port=self.config.bot_internal_port,
         )
 
     def route(self, request: AdminRequest) -> AdminResponse:
@@ -161,6 +168,16 @@ class AdminRouter:
             return self._handle_get_analytics_zip(request)
         if path in ("/analytics/export/csv", "/analytics/csv"):
             return self._handle_get_analytics_csv(request)
+
+        # Broadcast Web Routes
+        if path == "/broadcast":
+            return self._handle_get_broadcast(request)
+        if path in ("/broadcast/send", "/broadcast") and request.method == "POST":
+            return self._handle_post_broadcast_send(request)
+        if path == "/broadcast/message" and request.method == "POST":
+            return self._handle_post_broadcast_message(request)
+        if path == "/broadcast/command" and request.method == "POST":
+            return self._handle_post_broadcast_command(request)
 
         # Map Web Routes
         if path == "/map":
@@ -929,6 +946,22 @@ class AdminRouter:
         if path in ("/api/analytics/export/csv", "/api/analytics/csv"):
             return self._handle_get_analytics_csv(request)
 
+        # Broadcast API Routes
+        if path in ("/api/broadcast/status", "/api/broadcast/count"):
+            return AdminResponse.json(self.broadcast_service.get_status())
+
+        if path == "/api/broadcast/commands":
+            return AdminResponse.json({"commands": self.broadcast_service.get_available_commands()})
+
+        if path in ("/api/broadcast/send", "/api/broadcast") and request.method == "POST":
+            return self._handle_api_broadcast_send(request)
+
+        if path == "/api/broadcast/message" and request.method == "POST":
+            return self._handle_api_broadcast_message(request)
+
+        if path == "/api/broadcast/command" and request.method == "POST":
+            return self._handle_api_broadcast_command(request)
+
         return AdminResponse.json({"error": "Endpoint not found"}, status_code=404)
 
     # --- LLM Data Import Handlers ---
@@ -1343,3 +1376,91 @@ class AdminRouter:
         except Exception as e:
             logger.error("Error during analytics export: %s", e, exc_info=True)
             return AdminResponse.redirect("/analytics?error=" + quote(f"Ошибка экспорта аналитики: {e}"))
+
+    # --- Broadcast Handlers ---
+
+    def _handle_get_broadcast(self, request: AdminRequest) -> AdminResponse:
+        error = request.query_params.get("error")
+        message = request.query_params.get("msg") or request.query_params.get("success")
+        status = self.broadcast_service.get_status()
+        chat_count = status.get("chat_count", 0)
+        is_online = status.get("online", False)
+        commands = self.broadcast_service.get_available_commands()
+        html = AdminTemplateRenderer.render_broadcast(
+            chat_count=chat_count,
+            commands=commands,
+            is_bot_online=is_online,
+            error=error,
+            message=message,
+            has_unsaved_changes=self.has_unsaved_changes(),
+        )
+        return AdminResponse.html(html)
+
+    def _handle_post_broadcast_send(self, request: AdminRequest) -> AdminResponse:
+        text = request.form_data.get("text", "").strip()
+        command = request.form_data.get("command", "").strip()
+        if not text and not command:
+            return AdminResponse.redirect("/broadcast?error=" + quote("Укажите текст сообщения или выберите команду для рассылки"))
+
+        result = self.broadcast_service.broadcast(text=text, command=command)
+        if result.get("status") == "ok":
+            sent = result.get("sent_count", 0)
+            total = result.get("total_chats", 0)
+            failed = result.get("failed_count", 0)
+            msg = f"Рассылка успешно выполнена! Отправлено: {sent} из {total}"
+            if failed > 0:
+                msg += f" (ошибок: {failed})"
+            return AdminResponse.redirect("/broadcast?msg=" + quote(msg))
+        else:
+            err_msg = result.get("message") or "Ошибка выполнения рассылки"
+            return AdminResponse.redirect("/broadcast?error=" + quote(err_msg))
+
+    def _handle_post_broadcast_message(self, request: AdminRequest) -> AdminResponse:
+        text = request.form_data.get("text", "").strip()
+        if not text:
+            return AdminResponse.redirect("/broadcast?error=" + quote("Текст сообщения не может быть пустым"))
+
+        result = self.broadcast_service.broadcast_message(text=text)
+        if result.get("status") == "ok":
+            sent = result.get("sent_count", 0)
+            total = result.get("total_chats", 0)
+            return AdminResponse.redirect("/broadcast?msg=" + quote(f"Сообщение успешно отправлено {sent} из {total} пользователей"))
+        else:
+            return AdminResponse.redirect("/broadcast?error=" + quote(result.get("message", "Ошибка отправки сообщения")))
+
+    def _handle_post_broadcast_command(self, request: AdminRequest) -> AdminResponse:
+        command = request.form_data.get("command", "").strip()
+        if not command:
+            return AdminResponse.redirect("/broadcast?error=" + quote("Выберите команду для выполнения"))
+
+        result = self.broadcast_service.broadcast_command(command=command)
+        if result.get("status") == "ok":
+            sent = result.get("sent_count", 0)
+            total = result.get("total_chats", 0)
+            return AdminResponse.redirect("/broadcast?msg=" + quote(f"Команда '{command}' успешно выполнена для {sent} из {total} пользователей"))
+        else:
+            return AdminResponse.redirect("/broadcast?error=" + quote(result.get("message", "Ошибка выполнения команды")))
+
+    def _handle_api_broadcast_send(self, request: AdminRequest) -> AdminResponse:
+        payload = request.json() if isinstance(request.json(), dict) else request.form_data
+        text = payload.get("text")
+        command = payload.get("command")
+        parse_mode = payload.get("parse_mode", "Markdown")
+        result = self.broadcast_service.broadcast(text=text, command=command, parse_mode=parse_mode)
+        status_code = 200 if result.get("status") == "ok" else 400
+        return AdminResponse.json(result, status_code=status_code)
+
+    def _handle_api_broadcast_message(self, request: AdminRequest) -> AdminResponse:
+        payload = request.json() if isinstance(request.json(), dict) else request.form_data
+        text = payload.get("text", "")
+        parse_mode = payload.get("parse_mode", "Markdown")
+        result = self.broadcast_service.broadcast_message(text=text, parse_mode=parse_mode)
+        status_code = 200 if result.get("status") == "ok" else 400
+        return AdminResponse.json(result, status_code=status_code)
+
+    def _handle_api_broadcast_command(self, request: AdminRequest) -> AdminResponse:
+        payload = request.json() if isinstance(request.json(), dict) else request.form_data
+        command = payload.get("command", "")
+        result = self.broadcast_service.broadcast_command(command=command)
+        status_code = 200 if result.get("status") == "ok" else 400
+        return AdminResponse.json(result, status_code=status_code)

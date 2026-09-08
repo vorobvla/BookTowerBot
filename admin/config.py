@@ -36,6 +36,9 @@ class AdminConfig:
     map_path: str = MAP_PATH
     analytics_db_path: str = ANALYTICS_DB_PATH
     wishlist_db_path: str = WISHLIST_DB_PATH
+    bot_internal_host: str = "127.0.0.1"
+    bot_internal_port: int = 8085
+    bot_internal_api_url: str = "http://127.0.0.1:8085"
 
     @classmethod
     def from_env(cls) -> "AdminConfig":
@@ -46,6 +49,17 @@ class AdminConfig:
             port = int(port_str)
         except ValueError:
             port = 8080
+
+        bot_internal_host = os.getenv("BOT_INTERNAL_HOST", "127.0.0.1").strip()
+        bot_internal_port_str = os.getenv("BOT_INTERNAL_PORT", "8085").strip()
+        try:
+            bot_internal_port = int(bot_internal_port_str)
+        except ValueError:
+            bot_internal_port = 8085
+        bot_internal_api_url = (
+            os.getenv("BOT_INTERNAL_API_URL")
+            or f"http://{bot_internal_host}:{bot_internal_port}"
+        ).strip()
 
         auth_db_path_raw = (
             os.getenv("ADMIN_USERS_DB_PATH")
@@ -97,4 +111,7 @@ class AdminConfig:
             map_path=map_path,
             analytics_db_path=analytics_db_path,
             wishlist_db_path=wishlist_db_path,
+            bot_internal_host=bot_internal_host,
+            bot_internal_port=bot_internal_port,
+            bot_internal_api_url=bot_internal_api_url,
         )
