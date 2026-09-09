@@ -14,7 +14,7 @@ Book fair Telegram bot (`bot/`) and admin console (`admin/`) sharing persistent 
 - Focus strictly on the given task. Do not implement unrequested features or refactor unrelated code.
 - Code, internal constants, reasoning, and chat messages: English only.
 - Bot and Admin UI strings: Russian only. NEVER reason or respond in Russian in chat.
-- Minimize credit consumption: provide direct, concise responses without preamble.
+- Minimize credit consumption: provide direct, concise responses without preamble. NEVER REASON AND ANSWER IN ANOTHER LANGUAGE THEN ENGLISH EVEN IF THERE IS ANOTHER LANGUAGE IN PROMPT.
 
 ### Testing & Logs
 - Write focused `pytest` unit tests for new features in `tests/` without excessive coverage boilerplate.
