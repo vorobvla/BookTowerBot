@@ -3,6 +3,7 @@
 from datetime import datetime
 import os
 from typing import Dict, List, Optional, Tuple
+from telegram.helpers import escape_markdown
 
 from bot.content import TIMETABLES_PATH
 from bot.timetable.day import DayTimetable
@@ -83,9 +84,10 @@ class TimetableService:
         events = self.get_events(date_str, location, children_only=children_only)
 
         header_title = "🎈 *Детская программа на " if children_only else "📅 *Расписание на "
+        safe_location = escape_markdown(location, version=1)
         lines = [
             f"{header_title}{date_label}*",
-            f"📍 *Площадка:* {location}\n",
+            f"📍 *Площадка:* {safe_location}\n",
         ]
 
         if not events:
@@ -123,19 +125,26 @@ class TimetableService:
     def format_master_class_details(self, date_str: str, event: Event) -> str:
         """Format detailed information for a single master-class event as Markdown."""
         date_label = self.format_date_label(date_str)
+        safe_title = escape_markdown(event.title, version=1)
+        safe_time = escape_markdown(event.time, version=1)
         lines = [
-            f"🎨 *Мастер-класс: {event.title}*\n",
+            f"🎨 *Мастер-класс: {safe_title}*\n",
             f"📅 *Дата:* {date_label}",
-            f"⌚ *Время:* {event.time}",
+            f"⌚ *Время:* {safe_time}",
         ]
         if event.location:
-            lines.append(f"📍 *Площадка:* {event.location}")
+            lines.append(f"📍 *Площадка:* {escape_markdown(event.location, version=1)}")
         if event.is_children_activity:
             lines.append("🎈 *Программа:* Детская программа")
         if event.participants:
-            lines.append(f"👥 *Ведущие / Участники:* {', '.join(event.participants)}")
+            safe_parts = ", ".join(escape_markdown(p, version=1) for p in event.participants)
+            lines.append(f"👥 *Ведущие / Участники:* {safe_parts}")
         if event.organizer:
-            lines.append(f"📖 *Организатор:* {event.organizer}")
+            lines.append(f"📖 *Организатор:* {escape_markdown(event.organizer, version=1)}")
         if event.description:
-            lines.append(f"\n📝 *Описание:*\n{event.description}")
+            if event.description_markup:
+                desc = event.description
+            else:
+                desc = escape_markdown(event.description, version=1)
+            lines.append(f"\n📝 *Описание:*\n{desc}")
         return "\n".join(lines)

@@ -21,6 +21,7 @@ from admin.services.participants_service import AdminParticipantsService
 from admin.services.recs_service import AdminRecsService
 from admin.services.timetable_service import AdminTimetableService
 from admin.views.template_renderer import AdminTemplateRenderer
+from bot.timetable.markdown_validator import MarkdownValidator
 
 logger = logging.getLogger(__name__)
 
@@ -571,6 +572,8 @@ class AdminRouter:
         is_children_activity = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
         raw_master = request.form_data.get("is_master_class", "0")
         is_master_class = str(raw_master).strip().lower() in ("1", "true", "yes", "on")
+        raw_markup = request.form_data.get("description_markup", "0")
+        description_markup = str(raw_markup).strip().lower() in ("1", "true", "yes", "on")
 
         try:
             self.timetable_service.add_event(
@@ -583,6 +586,7 @@ class AdminRouter:
                 organizer=organizer,
                 is_children_activity=is_children_activity,
                 is_master_class=is_master_class,
+                description_markup=description_markup,
             )
             return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote(f"Мероприятие «{title}» добавлено"))
         except Exception as e:
@@ -614,6 +618,8 @@ class AdminRouter:
         is_children_activity = str(raw_children).strip().lower() in ("1", "true", "yes", "on")
         raw_master = request.form_data.get("is_master_class", "0")
         is_master_class = str(raw_master).strip().lower() in ("1", "true", "yes", "on")
+        raw_markup = request.form_data.get("description_markup", "0")
+        description_markup = str(raw_markup).strip().lower() in ("1", "true", "yes", "on")
 
         try:
             event_index = int(index_str)
@@ -628,6 +634,7 @@ class AdminRouter:
                 organizer=organizer,
                 is_children_activity=is_children_activity,
                 is_master_class=is_master_class,
+                description_markup=description_markup,
             )
             sep = "&" if "?" in return_to else "?"
             return AdminResponse.redirect(f"{return_to}{sep}msg=" + quote("Мероприятие обновлено"))
@@ -1407,6 +1414,12 @@ class AdminRouter:
         if not text and not command:
             return AdminResponse.redirect("/broadcast?error=" + quote("Укажите текст сообщения или выберите команду для рассылки"))
 
+        if text:
+            try:
+                MarkdownValidator.validate(text)
+            except ValueError as e:
+                return AdminResponse.redirect("/broadcast?error=" + quote(str(e)))
+
         result = self.broadcast_service.broadcast(text=text, command=command)
         if result.get("status") == "ok":
             sent = result.get("sent_count", 0)
@@ -1424,6 +1437,11 @@ class AdminRouter:
         text = request.form_data.get("text", "").strip()
         if not text:
             return AdminResponse.redirect("/broadcast?error=" + quote("Текст сообщения не может быть пустым"))
+
+        try:
+            MarkdownValidator.validate(text)
+        except ValueError as e:
+            return AdminResponse.redirect("/broadcast?error=" + quote(str(e)))
 
         result = self.broadcast_service.broadcast_message(text=text)
         if result.get("status") == "ok":
@@ -1451,6 +1469,12 @@ class AdminRouter:
         text = payload.get("text")
         command = payload.get("command")
         parse_mode = payload.get("parse_mode", "Markdown")
+        if text and str(parse_mode).strip().lower() in ("markdown", "markdownv1", "markdown_v1"):
+            try:
+                MarkdownValidator.validate(text)
+            except ValueError as e:
+                return AdminResponse.json({"status": "error", "message": str(e)}, status_code=400)
+
         result = self.broadcast_service.broadcast(text=text, command=command, parse_mode=parse_mode)
         status_code = 200 if result.get("status") == "ok" else 400
         return AdminResponse.json(result, status_code=status_code)
@@ -1459,6 +1483,12 @@ class AdminRouter:
         payload = request.json() if isinstance(request.json(), dict) else request.form_data
         text = payload.get("text", "")
         parse_mode = payload.get("parse_mode", "Markdown")
+        if text and str(parse_mode).strip().lower() in ("markdown", "markdownv1", "markdown_v1"):
+            try:
+                MarkdownValidator.validate(text)
+            except ValueError as e:
+                return AdminResponse.json({"status": "error", "message": str(e)}, status_code=400)
+
         result = self.broadcast_service.broadcast_message(text=text, parse_mode=parse_mode)
         status_code = 200 if result.get("status") == "ok" else 400
         return AdminResponse.json(result, status_code=status_code)

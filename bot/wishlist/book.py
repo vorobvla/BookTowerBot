@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Optional
+from telegram.helpers import escape_markdown
 
 
 @dataclass
@@ -29,18 +30,25 @@ class Book:
     def format_entry(self, index: Optional[int] = None) -> str:
         """Format the book entry as a readable markdown string."""
         prefix = f"{index}. " if index is not None else "• "
-        parts = [f"{prefix}*«{self.title}»*"]
+        safe_title = escape_markdown(self.title, version=1)
+        parts = [f"{prefix}*«{safe_title}»*"]
         if self.authors:
-            parts.append(f"— {self.authors}")
+            safe_authors = escape_markdown(self.authors, version=1)
+            parts.append(f"— {safe_authors}")
         details = []
         if self.publishing:
-            details.append(f"Изд: {self.publishing}")
+            safe_pub = escape_markdown(self.publishing, version=1)
+            details.append(f"Изд: {safe_pub}")
         if self.year:
             details.append(f"{self.year} г.")
         if self.isbn:
-            details.append(f"ISBN: {self.isbn}")
+            safe_isbn = escape_markdown(self.isbn, version=1)
+            details.append(f"ISBN: {safe_isbn}")
         if details:
             parts.append(f"({', '.join(details)})")
         if self.user_notes:
-            parts.append(f"\n   _Заметка: {self.user_notes}_")
+            safe_notes = escape_markdown(self.user_notes, version=1)
+            parts.append(f"\n   _Заметка: {safe_notes}_")
         return " ".join(parts)
+
+    to_markdown = format_entry

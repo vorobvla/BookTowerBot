@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from bot.content import TIMETABLES_PATH
 from bot.timetable.day import DayTimetable
+from bot.timetable.markdown_validator import MarkdownValidator
 
 
 class AdminTimetableService:
@@ -300,6 +301,7 @@ class AdminTimetableService:
         organizer: str = "",
         is_children_activity: Any = False,
         is_master_class: Any = False,
+        description_markup: Any = False,
     ) -> None:
         """Add an event to a date timetable, enforcing mandatory start time, title, and location."""
         event_dict = self._validate_and_build_event(
@@ -311,6 +313,7 @@ class AdminTimetableService:
             organizer=organizer,
             is_children_activity=is_children_activity,
             is_master_class=is_master_class,
+            description_markup=description_markup,
         )
 
         clean_date = date.strip()
@@ -333,6 +336,7 @@ class AdminTimetableService:
         organizer: str = "",
         is_children_activity: Any = False,
         is_master_class: Any = False,
+        description_markup: Any = False,
     ) -> None:
         """Update an event by index for a given date."""
         event_dict = self._validate_and_build_event(
@@ -344,6 +348,7 @@ class AdminTimetableService:
             organizer=organizer,
             is_children_activity=is_children_activity,
             is_master_class=is_master_class,
+            description_markup=description_markup,
         )
 
         clean_date = date.strip()
@@ -442,6 +447,7 @@ class AdminTimetableService:
         organizer: str = "",
         is_children_activity: Any = False,
         is_master_class: Any = False,
+        description_markup: Any = False,
     ) -> Dict[str, Any]:
         """Validate mandatory attributes (time, title, location) and construct event dictionary."""
         clean_time = self.validate_time(time)
@@ -467,6 +473,14 @@ class AdminTimetableService:
         else:
             clean_master = bool(is_master_class)
 
+        if isinstance(description_markup, str):
+            clean_markup = description_markup.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            clean_markup = bool(description_markup)
+
+        if clean_markup and clean_description:
+            MarkdownValidator.validate(clean_description)
+
         return {
             "time": clean_time,
             "title": clean_title,
@@ -476,6 +490,7 @@ class AdminTimetableService:
             "location": clean_location,
             "is_children_activity": clean_children,
             "is_master_class": clean_master,
+            "description_markup": clean_markup,
         }
 
     @staticmethod

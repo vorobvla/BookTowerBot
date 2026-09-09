@@ -108,6 +108,7 @@
             <div class="form-group">
                 <label>Описание мероприятия</label>
                 <textarea id="editDescription" name="description" class="form-control" rows="2" style="resize: none;"></textarea>
+                <div id="editDescriptionFeedback" style="display: none; font-size: 0.8rem; margin-top: 0.35rem; font-weight: 500;"></div>
             </div>
             <div class="form-group" style="display: flex; align-items: center; gap: 16px; margin-top: 0.5rem; margin-bottom: 1.25rem;">
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -117,6 +118,10 @@
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="is_master_class" id="editIsMasterClassCheckbox" value="1" style="width: 18px; height: 18px; cursor: pointer;">
                     <label for="editIsMasterClassCheckbox" style="margin: 0; font-weight: 500; cursor: pointer;">🎨 Мастер-класс</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="description_markup" id="editDescriptionMarkupCheckbox" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="editDescriptionMarkupCheckbox" style="margin: 0; font-weight: 500; cursor: pointer;">📝 Разметка в описании (Markdown)</label>
                 </div>
             </div>
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
@@ -162,7 +167,8 @@
         </div>
         <div class="form-group">
             <label>Описание мероприятия</label>
-            <textarea name="description" class="form-control" rows="2"></textarea>
+            <textarea id="addEventDescription" name="description" class="form-control" rows="2"></textarea>
+            <div id="addEventDescriptionFeedback" style="display: none; font-size: 0.8rem; margin-top: 0.35rem; font-weight: 500;"></div>
         </div>
         <div class="form-group" style="display: flex; align-items: center; gap: 16px; margin-top: 0.5rem; margin-bottom: 1.25rem;">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -173,12 +179,32 @@
                 <input type="checkbox" name="is_master_class" id="isMasterClassCheckbox" value="1" style="width: 18px; height: 18px; cursor: pointer;">
                 <label for="isMasterClassCheckbox" style="margin: 0; font-weight: 500; cursor: pointer;">🎨 Мастер-класс</label>
             </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="description_markup" id="descriptionMarkupCheckbox" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                <label for="descriptionMarkupCheckbox" style="margin: 0; font-weight: 500; cursor: pointer;">📝 Разметка в описании (Markdown)</label>
+            </div>
         </div>
         <button type="submit" class="btn">Добавить мероприятие</button>
     </form>
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    var addDesc = document.getElementById('addEventDescription');
+    var addFb = document.getElementById('addEventDescriptionFeedback');
+    var addChk = document.getElementById('descriptionMarkupCheckbox');
+    if (addDesc && addFb && addChk && typeof setupMarkdownLiveValidation === 'function') {
+        setupMarkdownLiveValidation(addDesc, addFb, addChk);
+    }
+
+    var editDesc = document.getElementById('editDescription');
+    var editFb = document.getElementById('editDescriptionFeedback');
+    var editChk = document.getElementById('editDescriptionMarkupCheckbox');
+    if (editDesc && editFb && editChk && typeof setupMarkdownLiveValidation === 'function') {
+        setupMarkdownLiveValidation(editDesc, editFb, editChk);
+    }
+});
+
 function handleLocationSelectChange(selectElem) {
     var customInput = document.getElementById('customLocationInput');
     if (selectElem.value === '__NEW__') {
@@ -214,6 +240,17 @@ function validateEventForm(form) {
         return false;
     }
 
+    var markupCheckbox = document.getElementById('descriptionMarkupCheckbox');
+    var descInput = document.getElementById('addEventDescription');
+    if (markupCheckbox && markupCheckbox.checked && descInput && descInput.value.trim() && typeof validateTelegramMarkdown === 'function') {
+        var res = validateTelegramMarkdown(descInput.value);
+        if (!res.valid) {
+            alert('Некорректная разметка Markdown в описании: ' + res.error);
+            descInput.focus();
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -227,6 +264,7 @@ function openEditEventModal(btn) {
     var description = btn.getAttribute('data-description') || '';
     var isChildren = btn.getAttribute('data-children') === '1';
     var isMasterClass = btn.getAttribute('data-masterclass') === '1';
+    var isMarkup = btn.getAttribute('data-markup') === '1';
 
     document.getElementById('editEventIndex').value = index;
     var editTimeInput = document.getElementById('editEventStartTime');
@@ -243,6 +281,15 @@ function openEditEventModal(btn) {
     document.getElementById('editDescription').value = description;
     document.getElementById('editIsChildrenCheckbox').checked = isChildren;
     document.getElementById('editIsMasterClassCheckbox').checked = isMasterClass;
+    document.getElementById('editDescriptionMarkupCheckbox').checked = isMarkup;
+
+    if (typeof updateMarkdownFeedback === 'function') {
+        updateMarkdownFeedback(
+            document.getElementById('editDescription'),
+            document.getElementById('editDescriptionFeedback'),
+            document.getElementById('editDescriptionMarkupCheckbox')
+        );
+    }
 
     var locSelect = document.getElementById('editLocationSelect');
     var customLoc = document.getElementById('editCustomLocationInput');
@@ -319,6 +366,17 @@ function validateEditEventForm(form) {
         alert('Пожалуйста, выберите локацию');
         locSelect.focus();
         return false;
+    }
+
+    var markupCheckbox = document.getElementById('editDescriptionMarkupCheckbox');
+    var descInput = document.getElementById('editDescription');
+    if (markupCheckbox && markupCheckbox.checked && descInput && descInput.value.trim() && typeof validateTelegramMarkdown === 'function') {
+        var res = validateTelegramMarkdown(descInput.value);
+        if (!res.valid) {
+            alert('Некорректная разметка Markdown в описании: ' + res.error);
+            descInput.focus();
+            return false;
+        }
     }
 
     return true;

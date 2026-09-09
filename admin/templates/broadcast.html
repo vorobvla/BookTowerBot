@@ -58,6 +58,7 @@
             <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; display: flex; gap: 1.5rem;">
                 <span>Поддерживается разметка: <code>*жирный*</code>, <code>_курсив_</code>, <code>[ссылка](url)</code>, <code>`код`</code></span>
             </div>
+            <div id="broadcastTextFeedback" style="display: none; font-size: 0.8rem; margin-top: 0.35rem; font-weight: 500;"></div>
         </div>
 
         <div class="form-group" style="margin-bottom: 1.5rem;">
@@ -144,6 +145,14 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    var txt = document.getElementById('broadcastText');
+    var fb = document.getElementById('broadcastTextFeedback');
+    if (txt && fb && typeof setupMarkdownLiveValidation === 'function') {
+        setupMarkdownLiveValidation(txt, fb, null);
+    }
+});
+
 function openBroadcastConfirmModal() {
     var textInput = document.getElementById('broadcastText');
     var cmdInput = document.getElementById('broadcastCommand');
@@ -153,6 +162,15 @@ function openBroadcastConfirmModal() {
     if (!textVal && !cmdVal) {
         alert('Пожалуйста, введите текст сообщения или выберите команду для рассылки.');
         return;
+    }
+
+    if (textVal && typeof validateTelegramMarkdown === 'function') {
+        var res = validateTelegramMarkdown(textVal);
+        if (!res.valid) {
+            alert('Некорректная разметка Markdown в тексте рассылки: ' + res.error);
+            if (textInput) textInput.focus();
+            return;
+        }
     }
 
     var modal = document.getElementById('broadcastConfirmModal');

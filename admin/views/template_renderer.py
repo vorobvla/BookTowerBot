@@ -306,6 +306,9 @@ class AdminTemplateRenderer:
                 master_checked_attr = "checked" if is_master else ""
                 is_master_class_num = "1" if is_master else "0"
 
+                is_markup = bool(item.get("description_markup", False))
+                is_description_markup_num = "1" if is_markup else "0"
+
                 row_html = (
                     mc_row_tpl.replace("{{ date_key }}", html.escape(date_key))
                     .replace("{{ display_date }}", html.escape(display_date))
@@ -320,6 +323,7 @@ class AdminTemplateRenderer:
                     .replace("{{ is_children_activity_num }}", is_children_num)
                     .replace("{{ master_checked_attr }}", master_checked_attr)
                     .replace("{{ is_master_class_num }}", is_master_class_num)
+                    .replace("{{ is_description_markup_num }}", is_description_markup_num)
                     .replace("{{ title_attr }}", html.escape(raw_title, quote=True))
                     .replace("{{ location_attr }}", html.escape(raw_location, quote=True))
                     .replace("{{ organizer_attr }}", html.escape(raw_organizer, quote=True))
@@ -484,6 +488,9 @@ class AdminTemplateRenderer:
             master_checked_attr = "checked" if getattr(event, "is_master_class", False) else ""
             is_master_class_num = "1" if getattr(event, "is_master_class", False) else "0"
 
+            is_markup = bool(getattr(event, "description_markup", False) if not isinstance(event, dict) else event.get("description_markup", False))
+            is_description_markup_num = "1" if is_markup else "0"
+
             row_html = (
                 event_row_tpl.replace("{{ time }}", html.escape(event.time))
                 .replace("{{ title }}", html.escape(event.title))
@@ -497,6 +504,7 @@ class AdminTemplateRenderer:
                 .replace("{{ is_children_activity_num }}", is_children_num)
                 .replace("{{ master_checked_attr }}", master_checked_attr)
                 .replace("{{ is_master_class_num }}", is_master_class_num)
+                .replace("{{ is_description_markup_num }}", is_description_markup_num)
                 .replace("{{ title_attr }}", html.escape(event.title, quote=True))
                 .replace("{{ location_attr }}", html.escape(event.location, quote=True))
                 .replace("{{ organizer_attr }}", html.escape(event.organizer or "", quote=True))

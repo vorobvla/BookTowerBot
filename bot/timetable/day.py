@@ -34,15 +34,19 @@ class DayTimetable:
         return (time_val, title_str.lower(), title_str)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DayTimetable":
+    def from_dict(cls, data: Dict[str, Any], escape_markup: bool = False) -> "DayTimetable":
         """Create DayTimetable instance from a dictionary."""
         date = str(data.get("date", "")).strip()
         raw_events = data.get("events") or []
-        events = [Event.from_dict(item) for item in raw_events if isinstance(item, dict)]
+        events = [
+            Event.from_dict(item)
+            for item in raw_events
+            if isinstance(item, dict)
+        ]
         return cls(date=date, events=events)
 
     @classmethod
-    def from_file(cls, file_path: str) -> "DayTimetable":
+    def from_file(cls, file_path: str, escape_markup: bool = False) -> "DayTimetable":
         """Load DayTimetable from a JSON file."""
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)

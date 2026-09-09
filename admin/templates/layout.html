@@ -1072,6 +1072,182 @@
         document.querySelectorAll('input[name="time"], .time-picker').forEach(setupTimeInput);
     });
 
+    // Telegram Markdown v1 syntax validator
+    function validateTelegramMarkdown(text) {
+        if (!text || text.trim() === '') {
+            return { valid: true, error: null };
+        }
+        var n = text.length;
+        var i = 0;
+        var stack = [];
+        while (i < n) {
+            if (text[i] === '\\') {
+                if (i + 1 >= n) {
+                    return { valid: false, error: "Символ экранирования '\\' в конце строки" };
+                }
+                i += 2;
+                continue;
+            }
+            if (stack.length > 0 && stack[stack.length - 1].tag === '```') {
+                if (text.substr(i, 3) === '```') {
+                    stack.pop();
+                    i += 3;
+                } else {
+                    i += 1;
+                }
+                continue;
+            }
+            if (stack.length > 0 && stack[stack.length - 1].tag === '`') {
+                if (text[i] === '`') {
+                    stack.pop();
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+                continue;
+            }
+            if (text.substr(i, 3) === '```') {
+                stack.push({ tag: '```', pos: i });
+                i += 3;
+                continue;
+            }
+            if (text[i] === '`') {
+                stack.push({ tag: '`', pos: i });
+                i += 1;
+                continue;
+            }
+            if (text[i] === '[') {
+                var linkClose = -1;
+                var j = i + 1;
+                while (j < n) {
+                    if (text[j] === '\\') {
+                        j += 2;
+                        continue;
+                    }
+                    if (text[j] === ']') {
+                        linkClose = j;
+                        break;
+                    }
+                    if (text[j] === '[') {
+                        return { valid: false, error: "Незакрытая скобка '[' на позиции " + (i + 1) };
+                    }
+                    j += 1;
+                }
+                if (linkClose === -1 || linkClose + 1 >= n || text[linkClose + 1] !== '(') {
+                    return { valid: false, error: "Незакрытая ссылка [текст](url) на позиции " + (i + 1) };
+                }
+                var urlClose = -1;
+                var k = linkClose + 2;
+                while (k < n) {
+                    if (text[k] === '\\') {
+                        k += 2;
+                        continue;
+                    }
+                    if (text[k] === ')') {
+                        urlClose = k;
+                        break;
+                    }
+                    if (text[k] === '(' || text[k] === '\n') {
+                        return { valid: false, error: "Некорректный URL в ссылке на позиции " + (linkClose + 2) };
+                    }
+                    k += 1;
+                }
+                if (urlClose === -1) {
+                    return { valid: false, error: "Незакрытый URL в ссылке на позиции " + (linkClose + 2) };
+                }
+                i = urlClose + 1;
+                continue;
+            }
+            if (text[i] === ']') {
+                return { valid: false, error: "Лишняя закрывающая скобка ']' на позиции " + (i + 1) };
+            }
+            if (text[i] === '*' || text[i] === '_') {
+                var ch = text[i];
+                if (stack.length > 0 && stack[stack.length - 1].tag === ch) {
+                    stack.pop();
+                } else if (stack.some(function(s) { return s.tag === ch; })) {
+                    return { valid: false, error: "Некорректное пересечение тегов '" + ch + "' на позиции " + (i + 1) };
+                } else {
+                    stack.push({ tag: ch, pos: i });
+                }
+                i += 1;
+                continue;
+            }
+            i += 1;
+        }
+        if (stack.length > 0) {
+            var last = stack[stack.length - 1];
+            var names = {
+                '```': 'блок кода (```)',
+                '`': 'встроенный код (`)',
+                '*': 'жирный шрифт (*)',
+                '_': 'курсив (_)'
+            };
+            var entName = names[last.tag] || last.tag;
+            return { valid: false, error: "Незакрытый " + entName + " начиная с позиции " + (last.pos + 1) };
+        }
+        return { valid: true, error: null };
+    }
+
+    function updateMarkdownFeedback(textareaEl, feedbackEl, checkboxEl) {
+        if (!textareaEl || !feedbackEl) return true;
+        if (checkboxEl && !checkboxEl.checked) {
+            feedbackEl.style.display = 'none';
+            feedbackEl.textContent = '';
+            textareaEl.style.borderColor = '';
+            textareaEl.style.boxShadow = '';
+            textareaEl.setCustomValidity('');
+            return true;
+        }
+        var val = textareaEl.value;
+        if (!val || val.trim() === '') {
+            if (checkboxEl && checkboxEl.checked) {
+                feedbackEl.style.display = 'block';
+                feedbackEl.style.color = '#059669';
+                feedbackEl.textContent = '✓ Разметка Markdown корректна';
+            } else {
+                feedbackEl.style.display = 'none';
+                feedbackEl.textContent = '';
+            }
+            textareaEl.style.borderColor = '';
+            textareaEl.style.boxShadow = '';
+            textareaEl.setCustomValidity('');
+            return true;
+        }
+        var res = validateTelegramMarkdown(val);
+        if (res.valid) {
+            feedbackEl.style.display = 'block';
+            feedbackEl.style.color = '#059669';
+            feedbackEl.textContent = '✓ Разметка Markdown корректна';
+            textareaEl.style.borderColor = '#10b981';
+            textareaEl.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.2)';
+            textareaEl.setCustomValidity('');
+            return true;
+        } else {
+            feedbackEl.style.display = 'block';
+            feedbackEl.style.color = '#dc2626';
+            feedbackEl.textContent = '✗ Некорректная разметка Markdown: ' + res.error;
+            textareaEl.style.borderColor = '#ef4444';
+            textareaEl.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
+            textareaEl.setCustomValidity('Некорректная разметка Markdown: ' + res.error);
+            return false;
+        }
+    }
+
+    function setupMarkdownLiveValidation(textareaEl, feedbackEl, checkboxEl) {
+        if (!textareaEl || !feedbackEl) return;
+        var handler = function() {
+            updateMarkdownFeedback(textareaEl, feedbackEl, checkboxEl);
+        };
+        textareaEl.addEventListener('input', handler);
+        textareaEl.addEventListener('keyup', handler);
+        textareaEl.addEventListener('change', handler);
+        if (checkboxEl) {
+            checkboxEl.addEventListener('change', handler);
+        }
+        handler();
+    }
+
     // Form submission flag to avoid unload prompt when deliberately submitting
     var isFormSubmitting = false;
     document.addEventListener('submit', function() {

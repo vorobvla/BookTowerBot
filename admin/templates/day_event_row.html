@@ -29,6 +29,7 @@
                 data-description="{{ description_attr }}"
                 data-children="{{ is_children_activity_num }}"
                 data-masterclass="{{ is_master_class_num }}"
+                data-markup="{{ is_description_markup_num }}"
                 onclick="openEditEventModal(this)" style="width: 100%; text-align: center;">✏️ Редактировать</button>
             <form method="POST" action="/timetables/{{ date_key }}/events/delete" style="margin: 0; width: 100%;" onsubmit="return confirm('Удалить событие?');">
                 <input type="hidden" name="event_index" value="{{ event_index }}">
