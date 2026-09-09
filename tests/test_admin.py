@@ -1760,3 +1760,18 @@ def test_edit_window_textarea_autoresize_and_no_user_resize():
     assert 'id="editPartDesc"' in part_tpl
     assert 'style="resize: none;"' in part_tpl
     assert "autoAdjustTextareaHeight(descEl)" in part_tpl
+
+
+def test_edit_event_modal_persists_on_outside_click():
+    """Verify edit event dialog does not dismiss on outside / backdrop clicks."""
+    day_tpl = AdminTemplateRenderer.load_template("day_timetable.html")
+    assert 'id="editEventModalBackdrop"' in day_tpl
+    assert 'handleEditModalBackdropClick' not in day_tpl
+    assert '<div id="editEventModalBackdrop" style="display: none;' in day_tpl
+    assert 'onclick="handleEditModalBackdropClick' not in day_tpl
+
+    list_tpl = AdminTemplateRenderer.load_template("timetables_list.html")
+    assert 'id="editEventModalBackdrop"' in list_tpl
+    assert 'handleEditModalBackdropClick' not in list_tpl
+    assert '<div id="editEventModalBackdrop" style="display: none;' in list_tpl
+    assert 'onclick="handleEditModalBackdropClick' not in list_tpl
