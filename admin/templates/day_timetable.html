@@ -79,14 +79,7 @@
             <div class="grid" style="grid-template-columns: 1.2fr 2fr 2fr;">
                 <div class="form-group">
                     <label class="required">Время начала</label>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <div id="editEventTimeDisplayBtn" class="form-control" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 1.05rem; background: #ffffff;" onclick="openAndroidTimePicker('editEventStartTime', 'editEventTimeDisplayVal')">
-                            <span id="editEventTimeDisplayVal">10:00</span>
-                            <span style="font-size: 1.15rem; color: var(--primary);">🕒</span>
-                        </div>
-                        <button type="button" class="btn btn-secondary" style="height: 38px; padding: 0.4rem 0.75rem;" onclick="openAndroidTimePicker('editEventStartTime', 'editEventTimeDisplayVal')">Выбрать</button>
-                        <input type="hidden" id="editEventStartTime" name="time" value="10:00">
-                    </div>
+                    <input type="text" id="editEventStartTime" name="time" class="form-control time-picker" value="10:00" autocomplete="off" required>
                 </div>
                 <div class="form-group">
                     <label class="required">Название</label>
@@ -114,7 +107,7 @@
             </div>
             <div class="form-group">
                 <label>Описание мероприятия</label>
-                <textarea id="editDescription" name="description" class="form-control" rows="2"></textarea>
+                <textarea id="editDescription" name="description" class="form-control" rows="2" style="resize: none;"></textarea>
             </div>
             <div class="form-group" style="display: flex; align-items: center; gap: 16px; margin-top: 0.5rem; margin-bottom: 1.25rem;">
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -141,14 +134,7 @@
         <div class="grid" style="grid-template-columns: 1.2fr 2fr 2fr;">
             <div class="form-group">
                 <label class="required">Время начала</label>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <div id="eventTimeDisplayBtn" class="form-control" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 1.05rem; background: #ffffff;" onclick="openAndroidTimePicker('eventStartTime', 'eventTimeDisplayVal')">
-                        <span id="eventTimeDisplayVal">10:00</span>
-                        <span style="font-size: 1.15rem; color: var(--primary);">🕒</span>
-                    </div>
-                    <button type="button" class="btn btn-secondary" style="height: 38px; padding: 0.4rem 0.75rem;" onclick="openAndroidTimePicker('eventStartTime', 'eventTimeDisplayVal')">Выбрать</button>
-                    <input type="hidden" id="eventStartTime" name="time" value="10:00">
-                </div>
+                <input type="text" id="eventStartTime" name="time" class="form-control time-picker" value="10:00" autocomplete="off" required>
             </div>
             <div class="form-group">
                 <label class="required">Название</label>
@@ -193,12 +179,6 @@
 </div>
 
 <script>
-function syncEventTimeInput() {
-    var h = document.getElementById('startHourSelect').value;
-    var m = document.getElementById('startMinuteSelect').value;
-    document.getElementById('eventStartTime').value = h + ':' + m;
-}
-
 function handleLocationSelectChange(selectElem) {
     var customInput = document.getElementById('customLocationInput');
     if (selectElem.value === '__NEW__') {
@@ -249,8 +229,14 @@ function openEditEventModal(btn) {
     var isMasterClass = btn.getAttribute('data-masterclass') === '1';
 
     document.getElementById('editEventIndex').value = index;
-    document.getElementById('editEventStartTime').value = time;
-    document.getElementById('editEventTimeDisplayVal').textContent = time;
+    var editTimeInput = document.getElementById('editEventStartTime');
+    if (editTimeInput) {
+        if (editTimeInput._flatpickr) {
+            editTimeInput._flatpickr.setDate(time, true);
+        } else {
+            editTimeInput.value = time;
+        }
+    }
     document.getElementById('editEventTitle').value = title;
     document.getElementById('editOrganizer').value = organizer;
     document.getElementById('editParticipants').value = participants;
@@ -287,6 +273,9 @@ function openEditEventModal(btn) {
     var modal = document.getElementById('editEventModalBackdrop');
     if (modal) {
         modal.style.display = 'flex';
+    }
+    if (typeof autoAdjustTextareaHeight === 'function') {
+        autoAdjustTextareaHeight(document.getElementById('editDescription'));
     }
 }
 

@@ -500,11 +500,13 @@ class AdminRouter:
     def _handle_get_timetables_list(self, request: AdminRequest) -> AdminResponse:
         dates = self.timetable_service.list_days()
         master_classes = self.timetable_service.get_all_master_classes()
+        all_locations = self.timetable_service.get_all_locations()
         error = request.query_params.get("error")
         message = request.query_params.get("msg")
         html = AdminTemplateRenderer.render_timetables_list(
             dates,
             master_classes=master_classes,
+            all_locations=all_locations,
             error=error,
             message=message,
             has_unsaved_changes=self.has_unsaved_changes(),
@@ -588,6 +590,7 @@ class AdminRouter:
 
     def _handle_post_day_event_update(self, request: AdminRequest, date_key: str) -> AdminResponse:
         index_str = request.form_data.get("event_index", "0")
+        return_to = request.form_data.get("return_to", f"/timetables/{date_key}")
         time = request.form_data.get("time", "").strip()
         if not time:
             start_time = request.form_data.get("start_time", "").strip()
@@ -626,9 +629,11 @@ class AdminRouter:
                 is_children_activity=is_children_activity,
                 is_master_class=is_master_class,
             )
-            return AdminResponse.redirect(f"/timetables/{date_key}?msg=" + quote("Мероприятие обновлено"))
+            sep = "&" if "?" in return_to else "?"
+            return AdminResponse.redirect(f"{return_to}{sep}msg=" + quote("Мероприятие обновлено"))
         except Exception as e:
-            return AdminResponse.redirect(f"/timetables/{date_key}?error=" + quote(str(e)))
+            sep = "&" if "?" in return_to else "?"
+            return AdminResponse.redirect(f"{return_to}{sep}error=" + quote(str(e)))
 
     def _handle_post_day_event_delete(self, request: AdminRequest, date_key: str) -> AdminResponse:
         index_str = request.form_data.get("event_index", "0")

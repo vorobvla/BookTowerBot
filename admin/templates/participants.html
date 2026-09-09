@@ -87,7 +87,7 @@
             </div>
             <div class="form-group">
                 <label>Описание</label>
-                <textarea id="editPartDesc" name="description" class="form-control" rows="3"></textarea>
+                <textarea id="editPartDesc" name="description" class="form-control" rows="3" style="resize: none;"></textarea>
             </div>
             <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
                 <button type="button" class="btn btn-secondary" onclick="closeEditPartModal()">Отмена</button>
@@ -171,9 +171,13 @@ function openEditPartModal(btn) {
     document.getElementById('editPartStand').value = btn.getAttribute('data-stand') || '';
     document.getElementById('editPartName').value = btn.getAttribute('data-name') || '';
     document.getElementById('editPartLink').value = btn.getAttribute('data-link') || '';
-    document.getElementById('editPartDesc').value = btn.getAttribute('data-description') || '';
+    var descEl = document.getElementById('editPartDesc');
+    descEl.value = btn.getAttribute('data-description') || '';
     validateUrlInput(editLinkInput, editLinkFeedback);
     document.getElementById('editPartModalBackdrop').style.display = 'flex';
+    if (typeof autoAdjustTextareaHeight === 'function') {
+        autoAdjustTextareaHeight(descEl);
+    }
 }
 
 function closeEditPartModal() {

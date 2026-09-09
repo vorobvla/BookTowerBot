@@ -791,6 +791,89 @@ def test_template_renderer_timetables_view():
     assert "is_children_activity" in html_day
 
 
+def test_event_description_truncation_and_hover_toast():
+    """Verify event description is truncated to 200 chars in tables and full description hover toast exists."""
+    long_desc = "А" * 250
+    short_desc = "Короткое описание"
+    event_long = Event(
+        time="10:00",
+        title="Событие с длинным описанием",
+        location="Главный зал",
+        description=long_desc,
+    )
+    event_short = Event(
+        time="11:00",
+        title="Событие с коротким описанием",
+        location="Зал 2",
+        description=short_desc,
+    )
+    event_empty = Event(
+        time="12:00",
+        title="Событие без описания",
+        location="Зал 3",
+        description="",
+    )
+    day = DayTimetable(date="10092026", events=[event_long, event_short, event_empty])
+    html_day = AdminTemplateRenderer.render_day_timetable(
+        date_key="10092026",
+        timetable=day,
+        all_locations=["Главный зал", "Зал 2", "Зал 3"],
+    )
+
+    # Long description should be truncated to 200 chars + '...' in preview
+    expected_truncated = ("А" * 200) + "..."
+    assert expected_truncated in html_day
+    assert ("А" * 250) not in html_day.split('data-description="')[0]  # Not in raw visible text before attr
+    assert f'data-description="{long_desc}"' in html_day
+    assert "showEventDescriptionToast(this, event)" in html_day
+    assert "event-desc-hover" in html_day
+
+    # Short description should be displayed entirely
+    assert short_desc in html_day
+    assert f'data-description="{short_desc}"' in html_day
+
+    # Empty description displays dash
+    assert "—" in html_day
+
+    # Master classes table in timetables list
+    mc_data = [
+        {
+            "date_key": "10092026",
+            "event_index": 0,
+            "time": "14:00",
+            "title": "Мастер-класс длинный",
+            "location": "Павильон 1",
+            "description": long_desc,
+            "is_master_class": True,
+        },
+        {
+            "date_key": "10092026",
+            "event_index": 1,
+            "time": "15:00",
+            "title": "Мастер-класс без описания",
+            "location": "Павильон 2",
+            "description": "",
+            "is_master_class": True,
+        },
+    ]
+    html_list = AdminTemplateRenderer.render_timetables_list(
+        dates=["10092026"],
+        master_classes=mc_data,
+        all_locations=["Павильон 1", "Павильон 2"],
+    )
+    assert expected_truncated in html_list
+    assert f'data-description="{long_desc}"' in html_list
+    assert "showEventDescriptionToast(this, event)" in html_list
+
+    # Verify hover toast container and handlers in layout
+    layout = AdminTemplateRenderer.load_template("layout.html")
+    assert 'id="eventDescToast"' in layout
+    assert 'id="eventDescToastTitle"' in layout
+    assert 'id="eventDescToastBody"' in layout
+    assert "showEventDescriptionToast" in layout
+    assert "hideEventDescriptionToast" in layout
+
+
 def test_date_and_time_validation():
     """Verify robust date and start time validation in AdminTimetableService."""
     # Date validation and normalization
@@ -974,11 +1057,25 @@ def test_no_placeholders_or_english_duplicates_in_templates():
 
 
 def test_sidebar_layout_rendered():
-    """Verify left sidebar navigation is present in layout."""
+    """Verify left sidebar navigation and full-width main wrapper layout."""
     layout = AdminTemplateRenderer.load_template("layout.html")
     assert '<aside class="sidebar">' in layout
     assert '<main class="main-wrapper">' in layout
+    assert 'max-width: 1300px' not in layout
     assert '<a href="/map"' in layout
+
+
+def test_event_actions_buttons_column_alignment():
+    """Verify event action buttons are laid out in a column."""
+    day_row_tpl = AdminTemplateRenderer.load_template("day_event_row.html")
+    assert "flex-direction: column" in day_row_tpl
+    assert "✏️ Редактировать" in day_row_tpl
+    assert "Удалить" in day_row_tpl
+
+    mc_row_tpl = AdminTemplateRenderer.load_template("timetables_master_class_row.html")
+    assert "flex-direction: column" in mc_row_tpl
+    assert "✏️ Редактировать" in mc_row_tpl
+    assert "Удалить" in mc_row_tpl
 
 
 def test_emoji_picker_modal_in_layout():
@@ -1005,26 +1102,46 @@ def test_emoji_picker_modal_in_layout():
     assert '🇪🇺' in layout
 
 
-def test_android_time_picker_and_default_at_10():
-    """Verify Android Material TimePicker with 24-hour clock dial, default set to 10:00, and no AM/PM."""
+def test_conventional_24h_time_picker_and_default_at_10():
+    """Verify Flatpickr 24-hour scrolling time picker integration with default set to 10:00."""
     layout = AdminTemplateRenderer.load_template("layout.html")
-    assert 'id="androidTimeModalBackdrop"' in layout
-    assert 'android-time-modal' in layout
-    assert 'id="timeClockFace"' in layout
-    assert 'id="timeHourDisplay"' in layout
-    assert 'id="timeMinuteDisplay"' in layout
-    assert 'openAndroidTimePicker' in layout
-    assert 'closeAndroidTimePicker' in layout
-    assert 'confirmAndroidTimePicker' in layout
-    assert 'pickerHour = 10' in layout
+    assert 'flatpickr' in layout
+    assert 'time_24hr: true' in layout
+    assert 'defaultDate: input.value || "10:00"' in layout or '10:00' in layout
+    assert 'android-time-modal' not in layout
+    assert 'openAndroidTimePicker' not in layout
 
-    tpl = AdminTemplateRenderer.load_template("day_timetable.html")
-    assert 'openAndroidTimePicker' in tpl
-    assert 'id="eventStartTime"' in tpl
-    assert 'value="10:00"' in tpl
-    assert '10:00' in tpl
-    assert 'AM' not in tpl
-    assert 'PM' not in tpl
+    day_tpl = AdminTemplateRenderer.load_template("day_timetable.html")
+    assert 'name="time"' in day_tpl
+    assert 'id="eventStartTime"' in day_tpl
+    assert 'id="editEventStartTime"' in day_tpl
+    assert 'value="10:00"' in day_tpl
+    assert 'time-picker' in day_tpl
+    assert 'type="time"' not in day_tpl
+    assert 'AM' not in day_tpl
+    assert 'PM' not in day_tpl
+
+    list_tpl = AdminTemplateRenderer.load_template("timetables_list.html")
+    assert 'name="time"' in list_tpl
+    assert 'id="editEventStartTime"' in list_tpl
+    assert 'value="10:00"' in list_tpl
+    assert 'time-picker' in list_tpl
+    assert 'type="time"' not in list_tpl
+
+
+def test_flatpickr_date_picker_integration():
+    """Verify Flatpickr date picker integration with Russian locale and date format."""
+    layout = AdminTemplateRenderer.load_template("layout.html")
+    assert 'flatpickr' in layout
+    assert 'l10n/ru.js' in layout
+    assert 'initFlatpickrDatePickers' in layout
+    assert 'dateFormat: "d.m.Y"' in layout
+
+    list_tpl = AdminTemplateRenderer.load_template("timetables_list.html")
+    assert 'name="date"' in list_tpl
+    assert 'id="timetableDateInput"' in list_tpl
+    assert 'date-picker' in list_tpl
+    assert 'type="date"' not in list_tpl
 
 
 def test_admin_config_from_env_defaults_and_overrides():
@@ -1619,3 +1736,27 @@ def test_admin_router_participants_crud_and_api(temp_admin_env):
     resp_api_save = router.route(req_api_save)
     assert resp_api_save.status_code == 200
     assert not router.has_unsaved_changes()
+
+
+def test_edit_window_textarea_autoresize_and_no_user_resize():
+    """Verify edit modal description textareas disable user resize and auto-adjust to content size."""
+    layout = AdminTemplateRenderer.load_template("layout.html")
+    assert "textarea.form-control, textarea" in layout
+    assert "resize: none;" in layout
+    assert "function autoAdjustTextareaHeight" in layout
+    assert "autoAdjustTextareaHeight(e.target)" in layout
+
+    day_tpl = AdminTemplateRenderer.load_template("day_timetable.html")
+    assert 'id="editDescription"' in day_tpl
+    assert 'style="resize: none;"' in day_tpl
+    assert "autoAdjustTextareaHeight(document.getElementById('editDescription'))" in day_tpl
+
+    list_tpl = AdminTemplateRenderer.load_template("timetables_list.html")
+    assert 'id="editDescription"' in list_tpl
+    assert 'style="resize: none;"' in list_tpl
+    assert "autoAdjustTextareaHeight(document.getElementById('editDescription'))" in list_tpl
+
+    part_tpl = AdminTemplateRenderer.load_template("participants.html")
+    assert 'id="editPartDesc"' in part_tpl
+    assert 'style="resize: none;"' in part_tpl
+    assert "autoAdjustTextareaHeight(descEl)" in part_tpl

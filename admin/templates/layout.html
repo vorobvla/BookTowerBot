@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} — BookTower Admin</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -96,7 +99,7 @@
             flex: 1;
             padding: 2rem 2.5rem;
             overflow-y: auto;
-            max-width: 1300px;
+            width: 100%;
         }
         .card {
             background-color: var(--card-bg);
@@ -145,6 +148,12 @@
             outline: none;
             background: #ffffff;
             color: var(--text);
+            box-sizing: border-box;
+        }
+        textarea.form-control, textarea {
+            resize: none;
+            overflow-y: hidden;
+            box-sizing: border-box;
         }
         .form-control:focus {
             border-color: var(--primary);
@@ -195,7 +204,7 @@
         }
 
         /* Emoji Picker Modal Styles */
-        .emoji-modal-backdrop, .time-modal-backdrop {
+        .emoji-modal-backdrop {
             display: none;
             position: fixed;
             top: 0;
@@ -207,6 +216,15 @@
             z-index: 9999;
             align-items: center;
             justify-content: center;
+        }
+        .event-desc-clickable, .event-desc-hover {
+            cursor: pointer;
+            border-bottom: 1px dotted var(--text-muted);
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .event-desc-clickable:hover, .event-desc-hover:hover {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
         }
         .emoji-modal {
             background: #ffffff;
@@ -312,147 +330,6 @@
             transform: scale(1.15);
         }
 
-        /* Android Material TimePicker Styles */
-        .android-time-modal {
-            background: #ffffff;
-            border-radius: 24px;
-            padding: 24px;
-            width: 330px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            user-select: none;
-            border: 1px solid var(--border);
-        }
-        .time-modal-title {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            align-self: flex-start;
-            margin-bottom: 12px;
-            letter-spacing: 0.05em;
-        }
-        .time-modal-header {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 20px;
-            width: 100%;
-        }
-        .time-header-digits {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .time-digit-btn {
-            font-size: 2.75rem;
-            font-weight: 700;
-            border: none;
-            background: #f1f5f9;
-            color: #64748b;
-            padding: 4px 12px;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            min-width: 75px;
-            text-align: center;
-        }
-        .time-digit-btn.active {
-            background: #dbeafe;
-            color: #1d4ed8;
-        }
-        .time-separator {
-            font-size: 2.75rem;
-            font-weight: 700;
-            color: #1e293b;
-            line-height: 1;
-            margin: 0 2px;
-        }
-        .time-clock-container {
-            width: 260px;
-            height: 260px;
-            position: relative;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .time-clock-face {
-            width: 260px;
-            height: 260px;
-            background: #f1f5f9;
-            border-radius: 50%;
-            position: relative;
-            user-select: none;
-            touch-action: none;
-            cursor: pointer;
-        }
-        .clock-center-dot {
-            width: 8px;
-            height: 8px;
-            background: #2563eb;
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 4;
-        }
-        .clock-hand {
-            position: absolute;
-            bottom: 50%;
-            left: 50%;
-            width: 2px;
-            height: 95px;
-            background: #2563eb;
-            transform-origin: bottom center;
-            transform: rotate(0deg);
-            z-index: 2;
-            pointer-events: none;
-            transition: transform 0.15s ease, height 0.15s ease;
-        }
-        .clock-hand-end {
-            position: absolute;
-            top: -16px;
-            left: -15px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: #2563eb;
-            z-index: 2;
-        }
-        .clock-number {
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: #334155;
-            transform: translate(-50%, -50%);
-            border-radius: 50%;
-            cursor: pointer;
-            z-index: 3;
-            transition: color 0.15s;
-        }
-        .clock-number.inner {
-            font-size: 0.8rem;
-            color: #64748b;
-        }
-        .clock-number.selected {
-            color: #ffffff !important;
-            font-weight: 700;
-        }
-        .time-modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            width: 100%;
-            margin-top: 20px;
-        }
     </style>
 </head>
 <body>
@@ -521,32 +398,41 @@
         </div>
     </div>
 
-    <!-- Global Android Material Time Picker Modal -->
-    <div id="androidTimeModalBackdrop" class="time-modal-backdrop" onclick="handleTimeBackdropClick(event)">
-        <div class="android-time-modal" onclick="event.stopPropagation()">
-            <div class="time-modal-title">Выберите время</div>
-            <div class="time-modal-header">
-                <div class="time-header-digits">
-                    <button type="button" class="time-digit-btn active" id="timeHourDisplay" onclick="setTimePickerMode('hours')">10</button>
-                    <span class="time-separator">:</span>
-                    <button type="button" class="time-digit-btn" id="timeMinuteDisplay" onclick="setTimePickerMode('minutes')">00</button>
-                </div>
-            </div>
-            <div class="time-clock-container">
-                <div class="time-clock-face" id="timeClockFace" onclick="handleClockFaceClick(event)">
-                    <div class="clock-center-dot"></div>
-                    <div class="clock-hand" id="clockHand">
-                        <div class="clock-hand-end"></div>
-                    </div>
-                    <div id="clockNumbersContainer"></div>
-                </div>
-            </div>
-            <div class="time-modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeAndroidTimePicker()">Отмена</button>
-                <button type="button" class="btn" onclick="confirmAndroidTimePicker()">ОК</button>
-            </div>
-        </div>
-    </div>
+    <!-- Global Time Options Datalist (24-Hour Format) -->
+    <datalist id="commonTimeList">
+        <option value="08:00">08:00</option>
+        <option value="08:30">08:30</option>
+        <option value="09:00">09:00</option>
+        <option value="09:30">09:30</option>
+        <option value="10:00">10:00</option>
+        <option value="10:30">10:30</option>
+        <option value="11:00">11:00</option>
+        <option value="11:30">11:30</option>
+        <option value="12:00">12:00</option>
+        <option value="12:30">12:30</option>
+        <option value="13:00">13:00</option>
+        <option value="13:30">13:30</option>
+        <option value="14:00">14:00</option>
+        <option value="14:30">14:30</option>
+        <option value="15:00">15:00</option>
+        <option value="15:30">15:30</option>
+        <option value="16:00">16:00</option>
+        <option value="16:30">16:30</option>
+        <option value="17:00">17:00</option>
+        <option value="17:30">17:30</option>
+        <option value="18:00">18:00</option>
+        <option value="18:30">18:30</option>
+        <option value="19:00">19:00</option>
+        <option value="19:30">19:30</option>
+        <option value="20:00">20:00</option>
+        <option value="20:30">20:30</option>
+        <option value="21:00">21:00</option>
+        <option value="21:30">21:30</option>
+        <option value="22:00">22:00</option>
+        <option value="22:30">22:30</option>
+        <option value="23:00">23:00</option>
+        <option value="23:30">23:30</option>
+    </datalist>
 
     <!-- Global LLM Import Modal -->
     <div id="llmImportModalBackdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
@@ -604,6 +490,12 @@
                 <button type="button" id="llmAbortBtn" class="btn btn-danger" onclick="abortLlmImport()" style="padding: 0.5rem 1.25rem;">Прервать процесс</button>
             </div>
         </div>
+    </div>
+
+    <!-- Global Event Description Hover Toast -->
+    <div id="eventDescToast" style="display: none; position: fixed; z-index: 10000; max-width: 480px; max-height: 320px; overflow-y: auto; background: #1e293b; color: #f8fafc; padding: 0.85rem 1.1rem; border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 8px 10px -6px rgba(0, 0, 0, 0.25); font-size: 0.875rem; line-height: 1.55; pointer-events: none; border: 1px solid #334155;">
+        <div id="eventDescToastTitle" style="display: none; font-weight: 700; margin-bottom: 0.4rem; color: #93c5fd; font-size: 0.9rem;"></div>
+        <div id="eventDescToastBody" style="white-space: pre-wrap; word-break: break-word; color: #f1f5f9;"></div>
     </div>
 
     <style>
@@ -857,234 +749,86 @@
         renderEmojiGrid(category, query);
     }
 
-    /* Android Material Time Picker Implementation */
-    var currentTimeTargetInputId = null;
-    var currentTimeDisplayElemId = null;
-    var pickerHour = 10;
-    var pickerMinute = 0;
-    var pickerMode = 'hours';
-
-    function openAndroidTimePicker(targetInputId, displayElemId) {
-        currentTimeTargetInputId = targetInputId || 'eventStartTime';
-        currentTimeDisplayElemId = displayElemId || 'eventTimeDisplayVal';
-
-        var val = "10:00";
-        if (currentTimeTargetInputId) {
-            var input = document.getElementById(currentTimeTargetInputId);
-            if (input && input.value && input.value.indexOf(':') !== -1) {
-                val = input.value.trim();
-            }
-        }
-        var parts = val.split(':');
-        pickerHour = parseInt(parts[0], 10);
-        if (isNaN(pickerHour) || pickerHour < 0 || pickerHour > 23) pickerHour = 10;
-        pickerMinute = parseInt(parts[1], 10);
-        if (isNaN(pickerMinute) || pickerMinute < 0 || pickerMinute > 59) pickerMinute = 0;
-
-        pickerMode = 'hours';
-        var modal = document.getElementById('androidTimeModalBackdrop');
-        if (modal) {
-            modal.style.display = 'flex';
-            updateAndroidTimePickerUI();
-        }
-    }
-
-    function closeAndroidTimePicker() {
-        var modal = document.getElementById('androidTimeModalBackdrop');
-        if (modal) {
-            modal.style.display = 'none';
-        }
-    }
-
-    function handleTimeBackdropClick(event) {
-        if (event.target.id === 'androidTimeModalBackdrop') {
-            closeAndroidTimePicker();
-        }
-    }
-
-    function setTimePickerMode(mode) {
-        pickerMode = mode;
-        updateAndroidTimePickerUI();
-    }
-
-    function confirmAndroidTimePicker() {
-        var hStr = (pickerHour < 10 ? '0' : '') + pickerHour;
-        var mStr = (pickerMinute < 10 ? '0' : '') + pickerMinute;
-        var formatted = hStr + ':' + mStr;
-
-        if (currentTimeTargetInputId) {
-            var input = document.getElementById(currentTimeTargetInputId);
-            if (input) {
-                input.value = formatted;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        }
-        if (currentTimeDisplayElemId) {
-            var display = document.getElementById(currentTimeDisplayElemId);
-            if (display) {
-                display.textContent = formatted;
-            }
-        }
-        closeAndroidTimePicker();
-    }
-
-    function selectHour(h) {
-        pickerHour = h;
-        updateAndroidTimePickerUI();
-        setTimeout(function() {
-            pickerMode = 'minutes';
-            updateAndroidTimePickerUI();
-        }, 220);
-    }
-
-    function selectMinute(m) {
-        pickerMinute = m;
-        updateAndroidTimePickerUI();
-    }
-
-    function updateAndroidTimePickerUI() {
-        var hBtn = document.getElementById('timeHourDisplay');
-        var mBtn = document.getElementById('timeMinuteDisplay');
-        if (hBtn) {
-            hBtn.textContent = (pickerHour < 10 ? '0' : '') + pickerHour;
-            if (pickerMode === 'hours') hBtn.classList.add('active');
-            else hBtn.classList.remove('active');
-        }
-        if (mBtn) {
-            mBtn.textContent = (pickerMinute < 10 ? '0' : '') + pickerMinute;
-            if (pickerMode === 'minutes') mBtn.classList.add('active');
-            else mBtn.classList.remove('active');
-        }
-
-        renderClockFace();
-    }
-
-    function renderClockFace() {
-        var container = document.getElementById('clockNumbersContainer');
-        var hand = document.getElementById('clockHand');
-        if (!container || !hand) return;
-
-        container.innerHTML = '';
-        var center = 130; // 260px / 2
-
-        if (pickerMode === 'hours') {
-            var outerHours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-            var innerHours = ["00", 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
-
-            // Outer 1-12
-            outerHours.forEach(function(num, idx) {
-                var angleDeg = idx * 30;
-                var rad = (angleDeg - 90) * Math.PI / 180;
-                var x = center + 95 * Math.cos(rad);
-                var y = center + 95 * Math.sin(rad);
-
-                var el = document.createElement('div');
-                el.className = 'clock-number';
-                var hourVal = (num === 12 ? 12 : num);
-                el.textContent = num;
-                if (pickerHour === hourVal) el.classList.add('selected');
-                el.style.left = x + 'px';
-                el.style.top = y + 'px';
-                el.onclick = function(e) {
-                    e.stopPropagation();
-                    selectHour(hourVal);
-                };
-                container.appendChild(el);
-            });
-
-            // Inner 13-23, 00
-            innerHours.forEach(function(num, idx) {
-                var angleDeg = idx * 30;
-                var rad = (angleDeg - 90) * Math.PI / 180;
-                var x = center + 60 * Math.cos(rad);
-                var y = center + 60 * Math.sin(rad);
-
-                var el = document.createElement('div');
-                el.className = 'clock-number inner';
-                var hourVal = (num === "00" ? 0 : parseInt(num, 10));
-                el.textContent = num;
-                if (pickerHour === hourVal) el.classList.add('selected');
-                el.style.left = x + 'px';
-                el.style.top = y + 'px';
-                el.onclick = function(e) {
-                    e.stopPropagation();
-                    selectHour(hourVal);
-                };
-                container.appendChild(el);
-            });
-
-            // Hand rotation and length
-            var isInner = (pickerHour >= 13 || pickerHour === 0);
-            var handLen = isInner ? 60 : 95;
-            var angle = (pickerHour % 12) * 30;
-            hand.style.height = handLen + 'px';
-            hand.style.transform = 'rotate(' + angle + 'deg)';
-
-        } else {
-            // Minutes mode
-            var minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-            minutes.forEach(function(m, idx) {
-                var angleDeg = idx * 30;
-                var rad = (angleDeg - 90) * Math.PI / 180;
-                var x = center + 95 * Math.cos(rad);
-                var y = center + 95 * Math.sin(rad);
-
-                var el = document.createElement('div');
-                el.className = 'clock-number';
-                var mStr = (m < 10 ? '0' : '') + m;
-                el.textContent = mStr;
-                if (pickerMinute === m) el.classList.add('selected');
-                el.style.left = x + 'px';
-                el.style.top = y + 'px';
-                el.onclick = function(e) {
-                    e.stopPropagation();
-                    selectMinute(m);
-                };
-                container.appendChild(el);
-            });
-
-            var mAngle = pickerMinute * 6;
-            hand.style.height = '95px';
-            hand.style.transform = 'rotate(' + mAngle + 'deg)';
-        }
-    }
-
-    function handleClockFaceClick(event) {
-        var rect = event.currentTarget.getBoundingClientRect();
-        var clickX = event.clientX - rect.left - 130;
-        var clickY = event.clientY - rect.top - 130;
-        var dist = Math.sqrt(clickX * clickX + clickY * clickY);
-
-        var angleRad = Math.atan2(clickY, clickX);
-        var angleDeg = (angleRad * 180 / Math.PI) + 90;
-        if (angleDeg < 0) angleDeg += 360;
-
-        if (pickerMode === 'hours') {
-            var step = Math.round(angleDeg / 30) % 12;
-            if (dist < 78) {
-                // inner ring (00, 13..23)
-                var h = (step === 0 ? 0 : step + 12);
-                selectHour(h);
-            } else {
-                // outer ring (12, 1..11)
-                var h = (step === 0 ? 12 : step);
-                selectHour(h);
-            }
-        } else {
-            // minutes mode
-            var m = Math.round(angleDeg / 6) % 60;
-            selectMinute(m);
-        }
-    }
-
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeEmojiPicker();
-            closeAndroidTimePicker();
             closeLlmImportModal();
+            hideEventDescriptionToast();
             if (typeof closeEditEventModal === 'function') closeEditEventModal();
             if (typeof closeEditPartModal === 'function') closeEditPartModal();
+        }
+    });
+
+    // --- Event Description Hover Toast Logic ---
+    function showEventDescriptionToast(elem, event) {
+        var toast = document.getElementById('eventDescToast');
+        if (!toast) return;
+        var desc = elem.getAttribute('data-description') || '';
+        var title = elem.getAttribute('data-title') || '';
+        if (!desc) return;
+
+        var titleEl = document.getElementById('eventDescToastTitle');
+        var bodyEl = document.getElementById('eventDescToastBody');
+        if (titleEl) {
+            if (title) {
+                titleEl.textContent = title;
+                titleEl.style.display = 'block';
+            } else {
+                titleEl.style.display = 'none';
+            }
+        }
+        if (bodyEl) {
+            bodyEl.textContent = desc;
+        }
+        toast.style.display = 'block';
+        positionEventDescriptionToast(event);
+    }
+
+    function moveEventDescriptionToast(event) {
+        positionEventDescriptionToast(event);
+    }
+
+    function hideEventDescriptionToast() {
+        var toast = document.getElementById('eventDescToast');
+        if (toast) {
+            toast.style.display = 'none';
+        }
+    }
+
+    function positionEventDescriptionToast(event) {
+        var toast = document.getElementById('eventDescToast');
+        if (!toast || toast.style.display === 'none') return;
+        var x = event.clientX + 16;
+        var y = event.clientY + 16;
+        var toastRect = toast.getBoundingClientRect();
+        var width = toastRect.width || 380;
+        var height = toastRect.height || 120;
+        var winWidth = window.innerWidth;
+        var winHeight = window.innerHeight;
+
+        if (x + width > winWidth - 15) {
+            x = event.clientX - width - 16;
+            if (x < 10) x = 10;
+        }
+        if (y + height > winHeight - 15) {
+            y = event.clientY - height - 16;
+            if (y < 10) y = 10;
+        }
+        toast.style.left = x + 'px';
+        toast.style.top = y + 'px';
+    }
+
+    // --- Auto-adjust Textarea Height Logic ---
+    function autoAdjustTextareaHeight(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        var borderDiff = el.offsetHeight - el.clientHeight;
+        el.style.height = (el.scrollHeight + borderDiff) + 'px';
+    }
+
+    document.addEventListener('input', function(e) {
+        if (e.target && e.target.tagName === 'TEXTAREA') {
+            autoAdjustTextareaHeight(e.target);
         }
     });
 
@@ -1263,6 +1007,70 @@
             }
         });
     }
+
+    // Initialize Flatpickr 24-hour time pickers
+    function initFlatpickrTimePickers(container) {
+        var root = container || document;
+        if (typeof flatpickr !== 'undefined') {
+            root.querySelectorAll('input[name="time"], .time-picker').forEach(function(input) {
+                if (!input._flatpickr) {
+                    flatpickr(input, {
+                        enableTime: true,
+                        noCalendar: true,
+                        dateFormat: "H:i",
+                        time_24hr: true,
+                        defaultDate: input.value || "10:00",
+                        minuteIncrement: 5,
+                        allowInput: true
+                    });
+                }
+            });
+        }
+    }
+
+    // Initialize Flatpickr date pickers
+    function initFlatpickrDatePickers(container) {
+        var root = container || document;
+        if (typeof flatpickr !== 'undefined') {
+            var ruLocale = (typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.ru) ? flatpickr.l10ns.ru : "default";
+            root.querySelectorAll('input[name="date"].date-picker, .date-picker').forEach(function(input) {
+                if (!input._flatpickr) {
+                    flatpickr(input, {
+                        dateFormat: "d.m.Y",
+                        allowInput: true,
+                        locale: ruLocale
+                    });
+                }
+            });
+        }
+    }
+
+    // Auto-normalize and enhance 24-hour time inputs
+    document.addEventListener('DOMContentLoaded', function() {
+        initFlatpickrTimePickers();
+        initFlatpickrDatePickers();
+        function setupTimeInput(input) {
+            if (!input) return;
+            input.addEventListener('blur', function() {
+                var val = input.value.trim();
+                if (!val) return;
+                var match = val.match(/^(\d{1,2}):(\d{1,2})$/);
+                if (match) {
+                    var h = parseInt(match[1], 10);
+                    var m = parseInt(match[2], 10);
+                    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+                        var normalized = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+                        if (input._flatpickr) {
+                            input._flatpickr.setDate(normalized, true);
+                        } else {
+                            input.value = normalized;
+                        }
+                    }
+                }
+            });
+        }
+        document.querySelectorAll('input[name="time"], .time-picker').forEach(setupTimeInput);
+    });
 
     // Form submission flag to avoid unload prompt when deliberately submitting
     var isFormSubmitting = false;

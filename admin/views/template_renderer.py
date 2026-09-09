@@ -213,6 +213,7 @@ class AdminTemplateRenderer:
         cls,
         dates: List[str],
         master_classes: Optional[List[Dict[str, Any]]] = None,
+        all_locations: Optional[List[str]] = None,
         error: Optional[str] = None,
         message: Optional[str] = None,
         has_unsaved_changes: bool = False,
@@ -249,6 +250,16 @@ class AdminTemplateRenderer:
 
         date_rows_content = "".join(rows) if rows else empty_row_tpl
 
+        loc_option_tpl = cls.load_template("location_option.html")
+        loc_options = []
+        if all_locations:
+            for loc in all_locations:
+                loc_options.append(
+                    loc_option_tpl.replace("{{ value }}", html.escape(loc))
+                    .replace("{{ label }}", html.escape(loc))
+                )
+        loc_options_html = "".join(loc_options)
+
         mc_rows = []
         if master_classes:
             mc_row_tpl = cls.load_template("timetables_master_class_row.html")
@@ -264,27 +275,56 @@ class AdminTemplateRenderer:
                 else:
                     participants_str = str(participants_raw) if participants_raw else ""
                 display_participants = participants_str if participants_str else "—"
-                display_organizer = item.get("organizer", "") or "—"
-                display_description = item.get("description", "") or "—"
+                raw_organizer = item.get("organizer", "") or ""
+                display_organizer = raw_organizer if raw_organizer else "—"
+                raw_title = str(item.get("title", ""))
+                raw_location = str(item.get("location", ""))
+                raw_time = str(item.get("time", ""))
+                raw_description = item.get("description", "") or ""
+                if raw_description:
+                    if len(raw_description) > 200:
+                        display_desc_text = raw_description[:200] + "..."
+                    else:
+                        display_desc_text = raw_description
+                    display_description = (
+                        f'<span class="event-desc-hover" '
+                        f'data-title="{html.escape(raw_title, quote=True)}" '
+                        f'data-description="{html.escape(raw_description, quote=True)}" '
+                        f'onmouseenter="showEventDescriptionToast(this, event)" '
+                        f'onmousemove="moveEventDescriptionToast(event)" '
+                        f'onmouseleave="hideEventDescriptionToast()">'
+                        f'{html.escape(display_desc_text)}</span>'
+                    )
+                else:
+                    display_description = "—"
 
                 is_children = bool(item.get("is_children_activity", False))
                 checked_attr = "checked" if is_children else ""
+                is_children_num = "1" if is_children else "0"
 
                 is_master = bool(item.get("is_master_class", False))
                 master_checked_attr = "checked" if is_master else ""
+                is_master_class_num = "1" if is_master else "0"
 
                 row_html = (
                     mc_row_tpl.replace("{{ date_key }}", html.escape(date_key))
                     .replace("{{ display_date }}", html.escape(display_date))
                     .replace("{{ event_index }}", str(item.get("event_index", 0)))
-                    .replace("{{ time }}", html.escape(str(item.get("time", ""))))
-                    .replace("{{ title }}", html.escape(str(item.get("title", ""))))
-                    .replace("{{ location }}", html.escape(str(item.get("location", ""))))
+                    .replace("{{ time }}", html.escape(raw_time))
+                    .replace("{{ title }}", html.escape(raw_title))
+                    .replace("{{ location }}", html.escape(raw_location))
                     .replace("{{ organizer }}", html.escape(str(display_organizer)))
                     .replace("{{ participants }}", html.escape(str(display_participants)))
-                    .replace("{{ description }}", html.escape(str(display_description)))
+                    .replace("{{ description }}", display_description)
                     .replace("{{ checked_attr }}", checked_attr)
+                    .replace("{{ is_children_activity_num }}", is_children_num)
                     .replace("{{ master_checked_attr }}", master_checked_attr)
+                    .replace("{{ is_master_class_num }}", is_master_class_num)
+                    .replace("{{ title_attr }}", html.escape(raw_title, quote=True))
+                    .replace("{{ location_attr }}", html.escape(raw_location, quote=True))
+                    .replace("{{ organizer_attr }}", html.escape(raw_organizer, quote=True))
+                    .replace("{{ participants_attr }}", html.escape(participants_str, quote=True))
+                    .replace("{{ description_attr }}", html.escape(raw_description, quote=True))
                 )
                 mc_rows.append(row_html)
 
@@ -298,6 +338,7 @@ class AdminTemplateRenderer:
             .replace("{{ date_rows }}", date_rows_content)
             .replace("{{ master_class_rows }}", master_class_rows_content)
             .replace("{{ master_classes_count }}", master_classes_count)
+            .replace("{{ location_options }}", loc_options_html)
         )
 
         return cls._render_layout(
@@ -419,7 +460,23 @@ class AdminTemplateRenderer:
             participants_str = ", ".join(event.participants) if event.participants else ""
             display_participants = participants_str if participants_str else "—"
             display_organizer = event.organizer if event.organizer else "—"
-            display_description = event.description if event.description else "—"
+            raw_description = event.description if event.description else ""
+            if raw_description:
+                if len(raw_description) > 200:
+                    display_desc_text = raw_description[:200] + "..."
+                else:
+                    display_desc_text = raw_description
+                display_description = (
+                    f'<span class="event-desc-hover" '
+                    f'data-title="{html.escape(event.title, quote=True)}" '
+                    f'data-description="{html.escape(raw_description, quote=True)}" '
+                    f'onmouseenter="showEventDescriptionToast(this, event)" '
+                    f'onmousemove="moveEventDescriptionToast(event)" '
+                    f'onmouseleave="hideEventDescriptionToast()">'
+                    f'{html.escape(display_desc_text)}</span>'
+                )
+            else:
+                display_description = "—"
 
             checked_attr = "checked" if event.is_children_activity else ""
             is_children_num = "1" if event.is_children_activity else "0"
@@ -433,7 +490,7 @@ class AdminTemplateRenderer:
                 .replace("{{ location }}", html.escape(event.location))
                 .replace("{{ organizer }}", html.escape(display_organizer))
                 .replace("{{ participants }}", html.escape(display_participants))
-                .replace("{{ description }}", html.escape(display_description))
+                .replace("{{ description }}", display_description)
                 .replace("{{ date_key }}", html.escape(date_key))
                 .replace("{{ event_index }}", str(idx))
                 .replace("{{ checked_attr }}", checked_attr)
@@ -444,7 +501,7 @@ class AdminTemplateRenderer:
                 .replace("{{ location_attr }}", html.escape(event.location, quote=True))
                 .replace("{{ organizer_attr }}", html.escape(event.organizer or "", quote=True))
                 .replace("{{ participants_attr }}", html.escape(participants_str, quote=True))
-                .replace("{{ description_attr }}", html.escape(event.description or "", quote=True))
+                .replace("{{ description_attr }}", html.escape(raw_description, quote=True))
             )
             all_event_rows.append(row_html)
             if event.is_children_activity:

@@ -16,7 +16,7 @@
     <form method="POST" action="/timetables/add" style="display: flex; gap: 0.75rem; max-width: 600px; align-items: flex-end;" onsubmit="return validateDateForm(this);">
         <div style="flex: 1;">
             <label style="display:block; font-size:0.875rem; font-weight:600; margin-bottom:0.35rem;">Дата мероприятия</label>
-            <input type="date" name="date" id="timetableDateInput" class="form-control" lang="ru-RU" required>
+            <input type="text" name="date" id="timetableDateInput" class="form-control date-picker" autocomplete="off" required>
         </div>
         <button type="submit" class="btn" style="white-space: nowrap; height: 38px;">Добавить дату</button>
     </form>
@@ -65,6 +65,67 @@
     </table>
 </div>
 
+<!-- Edit Event Modal Backdrop -->
+<div id="editEventModalBackdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;" onclick="handleEditModalBackdropClick(event)">
+    <div class="card" style="width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; margin: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+            <h3 style="margin: 0;">✏️ Редактировать мероприятие</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeEditEventModal()" style="font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.5rem;">✕</button>
+        </div>
+        <form id="editEventForm" method="POST" action="" onsubmit="return validateEditEventForm(this);">
+            <input type="hidden" id="editEventIndex" name="event_index" value="0">
+            <input type="hidden" name="return_to" value="/timetables">
+            <div class="grid" style="grid-template-columns: 1.2fr 2fr 2fr;">
+                <div class="form-group">
+                    <label class="required">Время начала</label>
+                    <input type="text" id="editEventStartTime" name="time" class="form-control time-picker" value="10:00" autocomplete="off" required>
+                </div>
+                <div class="form-group">
+                    <label class="required">Название</label>
+                    <input type="text" id="editEventTitle" name="title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="required">Локация</label>
+                    <select id="editLocationSelect" name="location_select" class="form-control" onchange="handleEditLocationSelectChange(this)">
+                        <option value="" selected>-- Выберите локацию из списка --</option>
+                        {{ location_options }}
+                        <option value="__NEW__">➕ Создать новую локацию...</option>
+                    </select>
+                    <input type="text" id="editCustomLocationInput" name="custom_location" class="form-control" style="display:none; margin-top:0.5rem;">
+                </div>
+            </div>
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                    <label>Организатор</label>
+                    <input type="text" id="editOrganizer" name="organizer" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Участники</label>
+                    <input type="text" id="editParticipants" name="participants" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Описание мероприятия</label>
+                <textarea id="editDescription" name="description" class="form-control" rows="2" style="resize: none;"></textarea>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 16px; margin-top: 0.5rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="is_children_activity" id="editIsChildrenCheckbox" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="editIsChildrenCheckbox" style="margin: 0; font-weight: 500; cursor: pointer;">🎈 Детская программа</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="is_master_class" id="editIsMasterClassCheckbox" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="editIsMasterClassCheckbox" style="margin: 0; font-weight: 500; cursor: pointer;">🎨 Мастер-класс</label>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditEventModal()">Отмена</button>
+                <button type="submit" class="btn">Сохранить изменения</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 function validateDateForm(form) {
     var dateInput = form.querySelector('input[name="date"]');
@@ -73,6 +134,125 @@ function validateDateForm(form) {
         dateInput.focus();
         return false;
     }
+    return true;
+}
+
+function openEditEventModal(btn) {
+    var dateKey = btn.getAttribute('data-date') || '';
+    var index = btn.getAttribute('data-index');
+    var time = btn.getAttribute('data-time') || '10:00';
+    var title = btn.getAttribute('data-title') || '';
+    var location = btn.getAttribute('data-location') || '';
+    var organizer = btn.getAttribute('data-organizer') || '';
+    var participants = btn.getAttribute('data-participants') || '';
+    var description = btn.getAttribute('data-description') || '';
+    var isChildren = btn.getAttribute('data-children') === '1';
+    var isMasterClass = btn.getAttribute('data-masterclass') === '1';
+
+    var editForm = document.getElementById('editEventForm');
+    if (editForm && dateKey) {
+        editForm.action = '/timetables/' + encodeURIComponent(dateKey) + '/events/update';
+    }
+
+    document.getElementById('editEventIndex').value = index;
+    var editTimeInput = document.getElementById('editEventStartTime');
+    if (editTimeInput) {
+        if (editTimeInput._flatpickr) {
+            editTimeInput._flatpickr.setDate(time, true);
+        } else {
+            editTimeInput.value = time;
+        }
+    }
+    document.getElementById('editEventTitle').value = title;
+    document.getElementById('editOrganizer').value = organizer;
+    document.getElementById('editParticipants').value = participants;
+    document.getElementById('editDescription').value = description;
+    document.getElementById('editIsChildrenCheckbox').checked = isChildren;
+    document.getElementById('editIsMasterClassCheckbox').checked = isMasterClass;
+
+    var locSelect = document.getElementById('editLocationSelect');
+    var customLoc = document.getElementById('editCustomLocationInput');
+    var matched = false;
+    for (var i = 0; i < locSelect.options.length; i++) {
+        if (locSelect.options[i].value && locSelect.options[i].value === location) {
+            locSelect.selectedIndex = i;
+            matched = true;
+            break;
+        }
+    }
+    if (matched) {
+        customLoc.style.display = 'none';
+        customLoc.required = false;
+        customLoc.value = '';
+    } else if (location) {
+        locSelect.value = '__NEW__';
+        customLoc.style.display = 'block';
+        customLoc.required = true;
+        customLoc.value = location;
+    } else {
+        locSelect.selectedIndex = 0;
+        customLoc.style.display = 'none';
+        customLoc.required = false;
+        customLoc.value = '';
+    }
+
+    var modal = document.getElementById('editEventModalBackdrop');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+    if (typeof autoAdjustTextareaHeight === 'function') {
+        autoAdjustTextareaHeight(document.getElementById('editDescription'));
+    }
+}
+
+function closeEditEventModal() {
+    var modal = document.getElementById('editEventModalBackdrop');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function handleEditModalBackdropClick(event) {
+    if (event.target.id === 'editEventModalBackdrop') {
+        closeEditEventModal();
+    }
+}
+
+function handleEditLocationSelectChange(selectElem) {
+    var customInput = document.getElementById('editCustomLocationInput');
+    if (selectElem.value === '__NEW__') {
+        customInput.style.display = 'block';
+        customInput.required = true;
+        customInput.focus();
+    } else {
+        customInput.style.display = 'none';
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+
+function validateEditEventForm(form) {
+    var startTime = document.getElementById('editEventStartTime').value.trim();
+    if (!startTime) {
+        alert('Пожалуйста, укажите время начала');
+        document.getElementById('editEventStartTime').focus();
+        return false;
+    }
+
+    var locSelect = document.getElementById('editLocationSelect');
+    var customLoc = document.getElementById('editCustomLocationInput');
+    if (locSelect.value === '__NEW__') {
+        if (!customLoc.value.trim()) {
+            alert('Пожалуйста, введите название новой локации');
+            customLoc.focus();
+            return false;
+        }
+    } else if (!locSelect.value.trim()) {
+        alert('Пожалуйста, выберите локацию');
+        locSelect.focus();
+        return false;
+    }
+
     return true;
 }
 </script>

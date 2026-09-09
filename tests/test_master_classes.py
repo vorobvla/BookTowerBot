@@ -448,6 +448,7 @@ def test_admin_renderer_timetables_list_master_classes():
     html_with_mc = AdminTemplateRenderer.render_timetables_list(
         dates=["10092026"],
         master_classes=mc_data,
+        all_locations=["Павильон 3", "Мастерская"],
     )
     assert "Все мастер-классы" in html_with_mc
     assert "10.09.2026" in html_with_mc
@@ -460,6 +461,12 @@ def test_admin_renderer_timetables_list_master_classes():
     assert "/timetables/10092026" in html_with_mc
     assert 'name="is_master_class"' in html_with_mc
     assert 'name="is_children_activity"' in html_with_mc
+    assert "Перейти к дню" not in html_with_mc
+    assert "Редактировать" in html_with_mc
+    assert "openEditEventModal(this)" in html_with_mc
+    assert 'data-date="10092026"' in html_with_mc
+    assert "editEventModalBackdrop" in html_with_mc
+    assert "Павильон 3" in html_with_mc
 
 
 def test_admin_router_timetables_master_classes_panel_and_redirects(tmp_path):
@@ -515,9 +522,28 @@ def test_admin_router_timetables_master_classes_panel_and_redirects(tmp_path):
     assert res_toggle_mc.headers["Location"] == "/timetables"
     assert tt_service.get_day_dict(date_key)["events"][0]["is_master_class"] is False
 
+    # Edit event with return_to=/timetables
+    body_edit = (
+        "event_index=0&return_to=%2Ftimetables&time=16%3A00&title=%D0%9E%D0%B1%D0%BD%D0%BE%D0%B2%D0%BB%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9+%D0%BC%D0%B0%D1%81%D1%82%D0%B5%D1%80-%D0%BA%D0%BB%D0%B0%D1%81%D1%81&location=%D0%93%D0%BB%D0%B0%D0%B2%D0%BD%D1%8B%D0%B9+%D0%B7%D0%B0%D0%BB&is_master_class=1"
+    ).encode("utf-8")
+    req_edit = AdminRequest(
+        method="POST",
+        path=f"/timetables/{date_key}/events/update",
+        headers=headers,
+        body=body_edit,
+    )
+    res_edit = router.route(req_edit)
+    assert res_edit.status_code == 302
+    assert res_edit.headers["Location"].startswith("/timetables?msg=")
+    updated_event = tt_service.get_day_dict(date_key)["events"][0]
+    assert updated_event["time"] == "16:00"
+    assert updated_event["title"] == "Обновленный мастер-класс"
+    assert updated_event["location"] == "Главный зал"
+    assert updated_event["is_master_class"] is True
+
     # Also verify day timetable page still retains events in general/children panels
     req_day = AdminRequest(method="GET", path=f"/timetables/{date_key}", headers=headers)
     res_day = router.route(req_day)
     assert res_day.status_code == 200
     html_day = res_day.body.decode("utf-8")
-    assert "Мастер-класс по переплету" in html_day
+    assert "Обновленный мастер-класс" in html_day
