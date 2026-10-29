@@ -60,7 +60,7 @@ sudo apt install -y git docker.io docker-compose-v2
 
 ### 2. Клонирование репозитория
 ```bash
-git clone https://github.com/<your-username>/booktower.git
+git clone https://github.com/vorobvla/BookTowerBot.git
 cd booktower
 ```
 
@@ -257,7 +257,7 @@ sudo apt install -y git docker.io docker-compose-v2
 
 ### 2. Cloning the Repository
 ```bash
-git clone https://github.com/<your-username>/booktower.git
+git clone https://github.com/vorobvla/BookTowerBot.git
 cd booktower
 ```
 
