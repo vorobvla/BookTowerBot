@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 
-VERSION = "prague-2026-1.0.0"
+VERSION = "main-1.0.0"
 
 def main() -> None:
     """Parse arguments and start admin and bot modules concurrently."""
