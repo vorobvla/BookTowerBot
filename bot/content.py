@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+from main import VERSION
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
@@ -40,7 +42,7 @@ START_MESSAGE = (
     "• 📅 /timetables — Расписание мероприятий\n"
     "• 🎈 /children — Детская программа мероприятий\n"
     "• 🎨 /masterclasses — Мастер-классы\n"
-    "• 📚 /recommendations — Рекомендации книг\n"
+    "•    /recommendations — Рекомендации книг\n"
     "• 👥 /participants — Список участников и номера их стендов\n"
     "• 📝 /wishlist — Вишлист, куда вы можете добавить желаемые книги\n"
     "• ℹ️ /help — Помощь и информация о разработчике бота\n\n"
@@ -61,8 +63,9 @@ HELP_MESSAGE = (
     "• `/help` — Показать это справочное сообщение\n\n"
     "Вы также можете в любой момент воспользоваться кнопками меню.\n\n"
     "*Разработка бота:*\n"
-    "\tVladimir Vorobyov\n"
-    "\t[v.vorobyov.frlnc@gmail.com](mailto:v.vorobyov.frlnc@gmail.com)\n"
+    "\t\tVladimir Vorobyov\n"
+    "\t\t[v.vorobyov.frlnc@gmail.com](mailto:v.vorobyov.frlnc@gmail.com)\n"
+    "\nВерсия бота: " + VERSION
 )
 
 MAP_MESSAGE = (

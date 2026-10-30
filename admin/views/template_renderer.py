@@ -4,6 +4,7 @@ import html
 import os
 from typing import Any, Dict, List, Optional
 
+from main import VERSION
 from bot.participants.participant import Participant
 from bot.recommendations.category import RecommendationCategory
 from bot.timetable.day import DayTimetable
@@ -98,6 +99,7 @@ class AdminTemplateRenderer:
             .replace("{{ unsaved_changes_banner }}", banner_html)
             .replace("{{ unsaved_changes_bar_notice }}", bar_notice_html)
             .replace("{{ content }}", content)
+            .replace("{{ version }}", VERSION)
         )
 
     @classmethod
