@@ -131,8 +131,8 @@ fly deploy
 
 # Адиминистрирование:
 
-### Консоль (веб)
-1. Откройте браузер и перейдите по адресу: `http://<IP_вашего_сервера>:8080` (или `http://localhost:8080` при локальном запуске).
+### Веб-консоль
+1. Откройте браузер и перейдите по адресу: `http://<IP_вашего_сервера>:8080` (или `http://localhost:8080` при локальном запуске). При хостинге на Fly.io адрес консоли будет на странице приложения в панели Fly.io во вкладке Overview.
 2. Зарегистрируйте новую учетную запись администратора через форму регистрации.
 
 ### Одобрение администратора (пользователя консоли)
@@ -143,7 +143,11 @@ fly deploy
 
 # Или внутри запущенного Docker-контейнера:
 docker compose exec booktower_app ./auth_approval/approveAdmins.sh
+
+# Или, если приложение запущено на Fly.io, то можно удаленно подключиться к контейнеру через flyctrl SSH:
+fly ssh console -a booktowerbot
 ```
+
 Скрипт по очереди покажет ожидающие заявки с возможностью одобрить (`y`) или отклонить (`n`) пользователя.
 
 Для очистки всех неподтвержденных заявок:
@@ -329,7 +333,7 @@ fly deploy
 # Administration:
 
 ### Web Console
-1. Open your browser and navigate to `http://<YOUR_SERVER_IP>:8080` (or `http://localhost:8080` for local runs).
+1. Open your browser and navigate to `http://<YOUR_SERVER_IP>:8080` (or `http://localhost:8080` for local runs). When hosting on Fly.io, the console address is shown on the app page in the Fly.io dashboard, under the Overview tab.
 2. Register a new administrator account using the registration form.
 
 ### Approving an Administrator (Console User)
@@ -340,7 +344,11 @@ For security reasons, newly registered accounts are not active by default and re
 
 # Or inside the running Docker container:
 docker compose exec booktower_app ./auth_approval/approveAdmins.sh
+
+# Or, if the app runs on Fly.io, connect to the container remotely via flyctl SSH:
+fly ssh console -a booktowerbot
 ```
+
 The script will prompt you for each pending user to approve (`y`) or reject (`n`).
 
 To clear all pending approval requests:
